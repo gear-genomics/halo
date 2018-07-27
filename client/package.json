@@ -1,0 +1,21 @@
+{
+  "name": "halo-client",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "rimraf dist && parcel build src/index.html --no-cache --no-source-maps --public-url ./",
+    "dev": "parcel src/index.html --no-cache --open"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "parcel-bundler": "^1.9.7",
+    "rimraf": "^2.6.2"
+  },
+  "dependencies": {
+    "pako": "^1.0.6"
+  }
+}
