@@ -1,4 +1,8 @@
+import axios from 'axios'
 import pako from 'pako'
+
+const urlExample = document.getElementById('link-example').href
+var exampleData
 
 $('#mainTab a').on('click', function(e) {
   e.preventDefault()
@@ -18,6 +22,9 @@ submitButton.addEventListener('click', function() {
   run()
 })
 
+const exampleButton = document.getElementById('btn-example')
+exampleButton.addEventListener('click', showExample)
+
 sampleSelect.addEventListener('change', handleChangeSample)
 
 var inputData
@@ -27,6 +34,10 @@ function run() {
 
   // TODO error handling
   if (file === undefined) return
+
+  hideElement(resultContainer)
+  chartsContainer.innerHTML = ''
+  showElement(resultInfo)
 
   const fileReader = new FileReader()
   const isGzip = /\.gz$/.test(file.name)
@@ -41,22 +52,32 @@ function run() {
       content = pako.ungzip(content, { to: 'string' })
     }
     inputData = JSON.parse(content).data
-    const samples = inputData.map(rec => rec.sample)
-    sampleSelect.innerHTML = samples
-      .map((sample, index) => `<option value="${index}">${sample}</option>`)
-      .join('\n')
-    showElement(resultContainer)
-    vis(inputData[0])
+    setupSampleSelect()
+    setTimeout(() => {
+      vis(inputData[0])
+    }, 0)
   }
+}
+
+function setupSampleSelect() {
+  const samples = inputData.map(rec => rec.sample)
+  sampleSelect.innerHTML = samples
+    .map((sample, index) => `<option value="${index}">${sample}</option>`)
+    .join('\n')
 }
 
 function handleChangeSample(event) {
   const index = Number.parseInt(event.target.value)
-  vis(inputData[index])
+  hideElement(resultContainer)
+  chartsContainer.innerHTML = ''
+  showElement(resultInfo)
+  setTimeout(() => {
+    vis(inputData[index])
+  }, 0)
 }
 
 function vis(data) {
-  chartsContainer.innerHTML = ''
+  showElement(resultContainer)
   for (const coverage of data.coverages) {
     const coverageContainer = document.createElement('div')
     const chartContainer = document.createElement('div')
@@ -65,6 +86,7 @@ function vis(data) {
     const title = `${coverage.chromosome} – ${data.sample}`
     renderStrandedCoverageChart(chartContainer, coverage, title)
   }
+  hideElement(resultInfo)
 }
 
 function renderStrandedCoverageChart(container, data, title) {
@@ -98,6 +120,40 @@ function renderStrandedCoverageChart(container, data, title) {
   }
 
   Plotly.newPlot(container, traces, layout)
+}
+
+function showExample() {
+  hideElement(resultContainer)
+  chartsContainer.innerHTML = ''
+  showElement(resultInfo)
+  resultLink.click()
+
+  if (exampleData) {
+    inputData = exampleData
+    setupSampleSelect()
+    setTimeout(() => {
+      vis(inputData[0])
+    }, 0)
+  } else {
+    axios
+      .get(urlExample, {
+        responseType: 'arraybuffer'
+      })
+      .then(response => {
+        const content = pako.ungzip(response.data, { to: 'string' })
+        exampleData = JSON.parse(content).data
+        inputData = exampleData
+        setupSampleSelect()
+        setTimeout(() => {
+          vis(inputData[0])
+        }, 0)
+      })
+      .catch(error => {
+        // FIXME proper error handling
+        console.error(error)
+      })
+  }
+
 }
 
 function showElement(element) {

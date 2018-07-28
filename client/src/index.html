@@ -29,6 +29,8 @@
   </header>
 
   <main class="container">
+    <!-- tag should never be visible, it's just for storing the PDF link -->
+    <a id="link-example" href="static/HG00733.json.gz" class="d-none"></a>
     <ul class="nav nav-fill mb-4" id="mainTab">
       <li class="nav-item">
         <a class="nav-link active" href="#input-tab">Input</a>
@@ -66,6 +68,12 @@
           <span id="error-message"></span>
         </div>
         <div id="result-container" class="d-none">
+            <div class="alert alert-light" role="alert">
+              <i class="fas fa-info-circle"></i>
+              How to interact with the plots:
+              <a href="https://help.plot.ly/zoom-pan-hover-controls/" target="_blank">zoom/pan/hover</a>,
+              <a href="https://help.plot.ly/getting-to-know-the-plotly-modebar/" target="_blank">toolbar</a>
+            </div>
             <select class="form-control" id="selectSample"></select>
             <div id="charts-container" class="mt-4"></div>
         </div>
