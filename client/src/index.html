@@ -8,7 +8,7 @@
   <meta name="description" content="">
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
     crossorigin="anonymous">
-  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.6/css/all.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.2.0/css/all.css">
   <link rel="stylesheet" href="static/css/gear.css">
 </head>
 
@@ -44,7 +44,8 @@
 
         <div class="form-group">
           <label for="inputFile">
-            halo file <code>.json(.gz)</code>
+            halo file
+            <code>.json(.gz)</code>
           </label>
           <input type="file" class="form-control-file" id="inputFile">
         </div>
@@ -68,14 +69,24 @@
           <span id="error-message"></span>
         </div>
         <div id="result-container" class="d-none">
-            <div class="alert alert-info" role="alert">
-              <i class="fas fa-info-circle"></i>
-              How to interact with the plots:
-              <a href="https://help.plot.ly/zoom-pan-hover-controls/" target="_blank">zoom/pan/hover</a>,
-              <a href="https://help.plot.ly/getting-to-know-the-plotly-modebar/" target="_blank">toolbar</a>
-            </div>
-            <select class="form-control" id="selectSample"></select>
-            <div id="charts-container" class="mt-4"></div>
+          <div class="alert alert-info" role="alert">
+            <i class="fas fa-info-circle"></i>
+            How to interact with the plots:
+            <a href="https://help.plot.ly/zoom-pan-hover-controls/" target="_blank">zoom/pan/hover</a>,
+            <a href="https://help.plot.ly/getting-to-know-the-plotly-modebar/" target="_blank">toolbar</a>
+          </div>
+          <select class="form-control" id="selectSample"></select>
+          <div class="btn-group my-3" role="group">
+            <button id="btn-trellis-sample" type="button" class="btn btn-outline-primary active">
+              <i class="fas fa-user"></i>
+              Sample view
+            </button>
+            <button id="btn-trellis-chromosome" type="button" class="btn btn-outline-primary">
+                <i class="fas fa-dna"></i>
+              Chromosome view
+            </button>
+          </div>
+          <div id="charts-container"></div>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import pako from 'pako'
 
 const urlExample = document.getElementById('link-example').href
 var exampleData
+var view = 'samples'
 
 $('#mainTab a').on('click', function(e) {
   e.preventDefault()
@@ -25,9 +26,17 @@ submitButton.addEventListener('click', function() {
 const exampleButton = document.getElementById('btn-example')
 exampleButton.addEventListener('click', showExample)
 
+const trellisSampleButton = document.getElementById('btn-trellis-sample')
+trellisSampleButton.addEventListener('click', trellisSample)
+
+const trellisChromosomeButton = document.getElementById(
+  'btn-trellis-chromosome'
+)
+trellisChromosomeButton.addEventListener('click', trellisChromosome)
+
 sampleSelect.addEventListener('change', handleChangeSample)
 
-var inputData
+var inputData, samples, chromosomes
 
 function run() {
   const file = fileInput.files[0]
@@ -35,6 +44,9 @@ function run() {
   // TODO error handling
   if (file === undefined) return
 
+  view = 'samples'
+  trellisSampleButton.classList.add('active')
+  trellisChromosomeButton.classList.remove('active')
   hideElement(resultContainer)
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
@@ -52,18 +64,73 @@ function run() {
       content = pako.ungzip(content, { to: 'string' })
     }
     inputData = JSON.parse(content).data
-    setupSampleSelect()
+    setupSamples()
+    setupChromosomes()
+    setupSelect()
     setTimeout(() => {
-      vis(inputData[0])
+      vis(0)
     }, 0)
   }
 }
 
-function setupSampleSelect() {
-  const samples = inputData.map(rec => rec.sample)
-  sampleSelect.innerHTML = samples
-    .map((sample, index) => `<option value="${index}">${sample}</option>`)
-    .join('\n')
+function setupSamples() {
+  samples = inputData.map(rec => rec.sample)
+}
+
+function setupChromosomes() {
+  chromosomes = Array.from(
+    new Set(
+      inputData
+        .map(rec => rec.coverages.map(cov => cov.chromosome))
+        .reduce((chroms, chrom) => chroms.concat(chrom))
+    )
+  )
+}
+
+function setupSelect() {
+  if (view === 'samples') {
+    sampleSelect.innerHTML = samples
+      .map((sample, index) => `<option value="${index}">${sample}</option>`)
+      .join('\n')
+  } else {
+    sampleSelect.innerHTML = chromosomes
+      .map(
+        (chromosome, index) => `<option value="${index}">${chromosome}</option>`
+      )
+      .join('\n')
+  }
+}
+
+function trellisSample() {
+  if (view === 'samples') {
+    return
+  }
+  trellisSampleButton.classList.add('active')
+  trellisChromosomeButton.classList.remove('active')
+  view = 'samples'
+  hideElement(resultContainer)
+  chartsContainer.innerHTML = ''
+  showElement(resultInfo)
+  setupSelect()
+  setTimeout(() => {
+    vis(0)
+  }, 0)
+}
+
+function trellisChromosome() {
+  if (view === 'chromosomes') {
+    return
+  }
+  trellisChromosomeButton.classList.add('active')
+  trellisSampleButton.classList.remove('active')
+  view = 'chromosomes'
+  hideElement(resultContainer)
+  chartsContainer.innerHTML = ''
+  showElement(resultInfo)
+  setupSelect()
+  setTimeout(() => {
+    vis(0)
+  }, 0)
 }
 
 function handleChangeSample(event) {
@@ -72,19 +139,55 @@ function handleChangeSample(event) {
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
   setTimeout(() => {
-    vis(inputData[index])
+    vis(index)
   }, 0)
 }
 
-function vis(data) {
+function getData(index) {
+  const ret = []
+  if (view === 'samples') {
+    const sample = samples[index]
+    const slot = inputData.find(rec => rec.sample === sample)
+    for (const coverage of slot.coverages) {
+      ret.push({
+        sample,
+        chromosome: coverage.chromosome,
+        counts: coverage.counts,
+        positions: coverage.positions
+      })
+    }
+  } else {
+    const chromosome = chromosomes[index]
+    for (const rec of inputData) {
+      for (const coverage of rec.coverages.filter(
+        coverage => coverage.chromosome === chromosome
+      )) {
+        ret.push({
+          sample: rec.sample,
+          chromosome,
+          counts: coverage.counts,
+          positions: coverage.positions
+        })
+      }
+    }
+  }
+  return ret
+}
+
+function vis(index) {
+  const data = getData(index)
   showElement(resultContainer)
-  for (const coverage of data.coverages) {
+  for (const rec of data) {
     const coverageContainer = document.createElement('div')
     const chartContainer = document.createElement('div')
     coverageContainer.appendChild(chartContainer)
     chartsContainer.appendChild(coverageContainer)
-    const title = `${coverage.chromosome} – ${data.sample}`
-    renderStrandedCoverageChart(chartContainer, coverage, title)
+    const title = `${rec.chromosome} – ${rec.sample}`
+    renderStrandedCoverageChart(
+      chartContainer,
+      { positions: rec.positions, counts: rec.counts },
+      title
+    )
   }
   hideElement(resultInfo)
 }
@@ -123,6 +226,10 @@ function renderStrandedCoverageChart(container, data, title) {
 }
 
 function showExample() {
+  trellisSampleButton.classList.add('active')
+  trellisChromosomeButton.classList.remove('active')
+  view = 'samples'
+
   hideElement(resultContainer)
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
@@ -130,9 +237,11 @@ function showExample() {
 
   if (exampleData) {
     inputData = exampleData
-    setupSampleSelect()
+    setupSamples()
+    setupChromosomes()
+    setupSelect()
     setTimeout(() => {
-      vis(inputData[0])
+      vis(0)
     }, 0)
   } else {
     axios
@@ -143,9 +252,11 @@ function showExample() {
         const content = pako.ungzip(response.data, { to: 'string' })
         exampleData = JSON.parse(content).data
         inputData = exampleData
-        setupSampleSelect()
+        setupSamples()
+        setupChromosomes()
+        setupSelect()
         setTimeout(() => {
-          vis(inputData[0])
+          vis(0)
         }, 0)
       })
       .catch(error => {
@@ -153,7 +264,6 @@ function showExample() {
         console.error(error)
       })
   }
-
 }
 
 function showElement(element) {
