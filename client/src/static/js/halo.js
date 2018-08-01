@@ -3,7 +3,9 @@ import pako from 'pako'
 
 const urlExample = document.getElementById('link-example').href
 var exampleData
-var view = 'samples'
+let view = 'samples'
+let charts = []
+const barColors = ['#658c8b', '#f4a45f']
 
 $('#mainTab a').on('click', function(e) {
   e.preventDefault()
@@ -177,19 +179,100 @@ function getData(index) {
 function vis(index) {
   const data = getData(index)
   showElement(resultContainer)
-  for (const rec of data) {
+  charts = []
+  data.forEach((rec, index) => {
+    const title = `${rec.chromosome} – ${rec.sample}`
     const coverageContainer = document.createElement('div')
+    let html = title
+    html += `
+      <div class="form-row">
+        <div class="col">
+          <input
+            id="start-position-${index}"
+            type="number"
+            class="form-control form-control-sm"
+            placeholder="start position"
+          >
+        </div>
+        <div class="col">
+          <input
+            id="end-position-${index}"
+            type="number"
+            class="form-control form-control-sm"
+            placeholder="end position"
+          >
+        </div>
+        <div class="col">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary"
+            onclick="zoomRegion(${index})"
+          >
+            <i class="fas fa-search-plus" style="margin-right: 5px;"></i> 
+            Jump to region
+          </button>
+    `
+
+    if (view === 'chromosomes') {
+      html += `
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary"
+          style="margin-left: 10px;"
+          onclick="syncCharts(${index})"
+        >
+          <i class="fas fa-sync" style="margin-right: 5px;"></i>  
+          Sync charts
+        </button>
+      `
+    }
+
+    html += `
+        </div>
+      </div>
+    `
+
+    coverageContainer.innerHTML = html
     const chartContainer = document.createElement('div')
     coverageContainer.appendChild(chartContainer)
     chartsContainer.appendChild(coverageContainer)
-    const title = `${rec.chromosome} – ${rec.sample}`
+    charts.push(chartContainer)
     renderStrandedCoverageChart(
       chartContainer,
       { positions: rec.positions, counts: rec.counts },
       title
     )
-  }
+  })
   hideElement(resultInfo)
+}
+
+window.syncCharts = syncCharts
+
+function syncCharts(sourceIndex) {
+  const [startX, endX] = charts[sourceIndex].layout.xaxis.range
+  const [startY, endY] = charts[sourceIndex].layout.yaxis.range
+
+  charts.forEach((chart, index) => {
+    if (index !== sourceIndex) {
+      Plotly.relayout(chart, {
+        'xaxis.range': [startX, endX],
+        'yaxis.range': [startY, endY]
+      })
+    }
+  })
+}
+
+window.zoomRegion = zoomRegion
+
+function zoomRegion(index) {
+  const chart = charts[index]
+  const inputStartPosition = document.getElementById(`start-position-${index}`)
+  const inputEndPosition = document.getElementById(`end-position-${index}`)
+  const start = Number.parseInt(inputStartPosition.value, 10)
+  const end = Number.parseInt(inputEndPosition.value, 10)
+  Plotly.relayout(chart, {
+    'xaxis.range': [start, end]
+  })
 }
 
 function renderStrandedCoverageChart(container, data, title) {
@@ -197,7 +280,10 @@ function renderStrandedCoverageChart(container, data, title) {
     x: data.positions,
     y: data.counts[0].values,
     name: data.counts[0].label,
-    type: 'bar'
+    type: 'bar',
+    marker: {
+      color: barColors[0]
+    }
   }
 
   const trace2 = {
@@ -205,7 +291,10 @@ function renderStrandedCoverageChart(container, data, title) {
     y: data.counts[1].values,
     yaxis: 'y2',
     name: data.counts[1].label,
-    type: 'bar'
+    type: 'bar',
+    marker: {
+      color: barColors[1]
+    }
   }
 
   const traces = [trace1, trace2]
