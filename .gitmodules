@@ -1,0 +1,3 @@
+[submodule "cli/src/htslib"]
+	path = cli/src/htslib
+	url = https://github.com/samtools/htslib.git
