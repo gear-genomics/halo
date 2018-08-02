@@ -2,7 +2,7 @@
 ============================================================================
 Haplotype-resolved data analysis methods
 ============================================================================
-Copyright (C) 2018 Tobias Rausch
+Copyright (C) 2018
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ============================================================================
-Contact: Tobias Rausch (rausch@embl.de)
+Contact: Gear Genomics (gear_genomics@embl.de)
 ============================================================================
 */
 
