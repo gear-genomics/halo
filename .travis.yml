@@ -53,4 +53,4 @@ before_script:
   - $CXX --version
 
 script:
-  - cd cli; make all
+  - cd cli && make all
