@@ -279,25 +279,25 @@ function renderStrandedCoverageChart(container, data, title) {
   const trace1 = {
     x: data.positions,
     y: data.counts[0].values,
-    name: data.counts[0].label,
-    type: 'bar',
-    marker: {
-      color: barColors[0]
-    }
-  }
-
-  const trace2 = {
-    x: data.positions,
-    y: data.counts[1].values,
     yaxis: 'y2',
-    name: data.counts[1].label,
+    name: data.counts[0].label,
     type: 'bar',
     marker: {
       color: barColors[1]
     }
   }
 
-  const traces = [trace1, trace2]
+  const trace2 = {
+    x: data.positions,
+    y: data.counts[1].values,
+    name: data.counts[1].label,
+    type: 'bar',
+    marker: {
+      color: barColors[0]
+    }
+  }
+
+  const traces = [trace2, trace1]
 
   const layout = {
     title: title || '',
