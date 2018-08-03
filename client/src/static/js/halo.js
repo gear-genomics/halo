@@ -248,12 +248,12 @@ function vis(index) {
 
   charts.forEach((chart, index) => {
     chart.on('plotly_relayout', eventData => {
-      linkYaxis(index, eventData)
+      linkYaxes(index, eventData)
     })
   })
 }
 
-function linkYaxis(index, eventData) {
+function linkYaxes(index, eventData) {
   if (
     !eventData.hasOwnProperty('yaxis.range[0]') &&
     !eventData.hasOwnProperty('yaxis2.range[0]')
@@ -286,7 +286,7 @@ function linkYaxis(index, eventData) {
   }
   relayout.then(() => {
     chart.on('plotly_relayout', eventData => {
-      linkYaxis(index, eventData)
+      linkYaxes(index, eventData)
     })
   })
 }
@@ -296,12 +296,14 @@ window.syncCharts = syncCharts
 function syncCharts(sourceIndex) {
   const [startX, endX] = charts[sourceIndex].layout.xaxis.range
   const [startY, endY] = charts[sourceIndex].layout.yaxis.range
+  const [startY2, endY2] = charts[sourceIndex].layout.yaxis2.range
 
   charts.forEach((chart, index) => {
     if (index !== sourceIndex) {
       Plotly.relayout(chart, {
         'xaxis.range': [startX, endX],
-        'yaxis.range': [startY, endY]
+        'yaxis.range': [startY, endY],
+        'yaxis2.range': [startY2, endY2],
       })
     }
   })
