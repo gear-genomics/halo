@@ -243,7 +243,52 @@ function vis(index) {
       title
     )
   })
+
   hideElement(resultInfo)
+
+  charts.forEach((chart, index) => {
+    chart.on('plotly_relayout', eventData => {
+      linkYaxis(index, eventData)
+    })
+  })
+}
+
+function linkYaxis(index, eventData) {
+  if (
+    !eventData.hasOwnProperty('yaxis.range[0]') &&
+    !eventData.hasOwnProperty('yaxis2.range[0]')
+  ) {
+    return
+  }
+
+  const chart = charts[index]
+  const layout = chart.layout
+
+  chart.removeAllListeners('plotly_relayout')
+
+  let relayout
+  if ('yaxis.range[0]' in eventData) {
+    const [start, end] = [
+      eventData['yaxis.range[1]'],
+      eventData['yaxis.range[0]']
+    ]
+    relayout = Plotly.relayout(chart, {
+      'yaxis2.range': [start, end]
+    })
+  } else {
+    const [start, end] = [
+      eventData['yaxis2.range[1]'],
+      eventData['yaxis2.range[0]']
+    ]
+    relayout = Plotly.relayout(chart, {
+      'yaxis.range': [start, end]
+    })
+  }
+  relayout.then(() => {
+    chart.on('plotly_relayout', eventData => {
+      linkYaxis(index, eventData)
+    })
+  })
 }
 
 window.syncCharts = syncCharts
