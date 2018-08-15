@@ -34,6 +34,7 @@ Contact: Gear Genomics (gear_genomics@embl.de)
 
 #include "version.h"
 #include "count.h"
+#include "gcbias.h"
 
 using namespace halo;
 
@@ -44,6 +45,7 @@ displayUsage() {
   std::cout << std::endl;
   std::cout << "Commands:" << std::endl;
   std::cout << std::endl;
+  std::cout << "    gcbias       estimate GC bias" << std::endl;
   std::cout << "    count        count single cell reads" << std::endl;
   std::cout << std::endl;
   std::cout << std::endl;
@@ -72,6 +74,9 @@ int main(int argc, char **argv) {
   else if ((std::string(argv[1]) == "license") || (std::string(argv[1]) == "--license") || (std::string(argv[1]) == "-l")) {
     gplV3();
     return 0;
+  }
+  else if ((std::string(argv[1]) == "gcbias")) {
+    return gcbias(argc-1,argv+1);
   }
   else if ((std::string(argv[1]) == "count")) {
     return count(argc-1,argv+1);
