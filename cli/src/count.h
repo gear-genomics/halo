@@ -58,9 +58,6 @@ namespace halo
     uint16_t minMapQual;
     uint32_t window;
     uint32_t minchrsize;
-    int32_t minisize;
-    int32_t meanisize;
-    int32_t maxisize;
     int32_t blacklistn;
     int32_t percentid;
     std::string method;
@@ -68,6 +65,7 @@ namespace halo
     std::vector<std::string> sampleName;
     boost::filesystem::path outfile;
     boost::filesystem::path genome;
+    boost::filesystem::path gcbias;
     std::vector<boost::filesystem::path> files;
   };
   
@@ -94,12 +92,10 @@ namespace halo
     boost::program_options::options_description generic("Generic options");
     generic.add_options()
       ("help,?", "show help message")
-      ("type,t", boost::program_options::value<std::string>(&c.method)->default_value("StrandSeq"), "single cell seq. method [StrandSeq]")
+      ("type,t", boost::program_options::value<std::string>(&c.method)->default_value("StrandSeq"), "seq. method [StrandSeq]")
       ("genome,g", boost::program_options::value<boost::filesystem::path>(&c.genome), "genome fasta file")
+      ("gcbias,c", boost::program_options::value<boost::filesystem::path>(&c.gcbias), "GC bias profile")
       ("map-qual,q", boost::program_options::value<uint16_t>(&c.minMapQual)->default_value(1), "min. mapping quality")
-      ("meanisize,i", boost::program_options::value<int32_t>(&c.meanisize)->default_value(200), "mean fragment size")
-      ("minisize,j", boost::program_options::value<int32_t>(&c.minisize)->default_value(50), "min. fragment size")
-      ("maxisize,k", boost::program_options::value<int32_t>(&c.maxisize)->default_value(1000), "max. fragment size")
       ("blacklist,b", boost::program_options::value<int32_t>(&c.blacklistn)->default_value(10), "remove windows with >N%")
       ("percentid,p", boost::program_options::value<int32_t>(&c.percentid)->default_value(98), "min. required percent identity")
       ("window,w", boost::program_options::value<uint32_t>(&c.window)->default_value(200000), "window size")
@@ -138,9 +134,6 @@ namespace halo
     for(int i=0; i<argc; ++i) { std::cout << argv[i] << ' '; }
     std::cout << std::endl;
 
-    // Make sure mean fragment size is even
-    c.meanisize = (int32_t) (c.meanisize / 2) * 2;
-    
     // Check BAM files
     for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
       if (!(boost::filesystem::exists(c.files[file_c]) && boost::filesystem::is_regular_file(c.files[file_c]) && boost::filesystem::file_size(c.files[file_c]))) {
@@ -223,10 +216,6 @@ namespace halo
       }
     }
 
-    // GC-Bias
-    std::vector<int32_t> gcbias(c.meanisize + 2, 0);
-    std::vector<int32_t> refgc(c.meanisize + 2, 0);
-    
     // Parse bam (contig by contig)
     now = boost::posix_time::second_clock::local_time();
     std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "BAM file parsing" << std::endl;
@@ -265,29 +254,6 @@ namespace halo
 	if ((seq[i] == 'n') || (seq[i] == 'N')) nrun[i] = 1;
       }
 
-      // Reference GC
-      if (( (int32_t) hdr[0]->target_len[refIndex] > c.meanisize + 2) && (hdr[0]->target_len[refIndex] >= c.minchrsize)) {
-	int32_t halfwin = (int32_t) (c.meanisize / 2);
-	int32_t nsum = 0;
-	int32_t gcsum = 0;
-	for(int32_t pos = halfwin; pos < (int32_t) hdr[0]->target_len[refIndex] - halfwin; ++pos) {
-	  if (pos == halfwin) {
-	    for(int32_t i = pos - halfwin; i<pos+halfwin+1; ++i) {
-	      nsum += nrun[i];
-	      gcsum += gcref[i];
-	    }
-	  } else {
-	    nsum -= nrun[pos - halfwin - 1];
-	    gcsum -= gcref[pos - halfwin - 1];
-	    nsum += nrun[pos + halfwin];
-	    gcsum += gcref[pos + halfwin];
-	  }
-	  //std::string refslice = boost::to_upper_copy(std::string(seq + pos - halfwin, seq + pos + halfwin + 1));
-	  //std::cerr << refslice << ',' << refslice.size() << ',' << gcsum << ',' << nsum << std::endl;
-	  if (!nsum) ++refgc[gcsum];
-	}
-      }
-    
       // Parse BAM
       for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
 	// Qualities and alignment length
@@ -377,25 +343,21 @@ namespace halo
 
 	      // Insert size filter
 	      int32_t isize = (rec->core.pos + alignmentLength(rec)) - rec->core.mpos;
-	      if ((isize < c.minisize) || (isize > c.maxisize)) continue;
+	      //if ((isize < c.minisize) || (isize > c.maxisize)) continue;
 
 	      // Count fragment mid-points
 	      int32_t pos = rec->core.mpos + (int32_t) (isize/2);
 	      int32_t binny = (int) (pos / c.window);
-	      if (!gBL[binny]) {		
-		int32_t fragstart = pos - (c.meanisize / 2);
-		int32_t fragend = pos + (c.meanisize / 2) + 1;
+	      if (!gBL[binny]) {
+		int32_t meanisize = 200;
+		int32_t fragstart = pos - (meanisize / 2);
+		int32_t fragend = pos + (meanisize / 2) + 1;
 		if ((fragstart >= 0) && (fragend < (int32_t) hdr[0]->target_len[refIndex])) {
 		  int32_t ncount = 0;
 		  for(int32_t i = fragstart; i < fragend; ++i) {
 		    if (nrun[i]) ++ncount;
 		  }
 		  if (!ncount) {
-		    int32_t gccount = 0;
-		    for(int32_t i = fragstart; i < fragend; ++i) {
-		      if (gcref[i]) ++gccount;
-		    }
-		    ++gcbias[gccount];
 		    if (rec->core.flag & BAM_FREAD1) { 
 		      if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].second;
 		      else ++sWC[file_c][refIndex][binny].first;
@@ -414,10 +376,6 @@ namespace halo
       }
       if (seq != NULL) free(seq);
     }
-
-    // Output GC-bias
-    //for(uint32_t i = 0; i < gcbias.size(); ++i) std::cerr << i << "\t" << gcbias[i] << "\tSample" << std::endl;
-    //for(uint32_t i = 0; i < refgc.size(); ++i) std::cerr << i << "\t" << refgc[i] << "\tReference" << std::endl;
 
     // Output
     now = boost::posix_time::second_clock::local_time();
