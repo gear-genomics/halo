@@ -194,7 +194,7 @@ namespace halo
     std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "Estimate GC bias" << std::endl;
     boost::progress_display show_progress( hdr[0]->n_targets );
     for (int refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
-      //for (int refIndex = 0; refIndex<1; ++refIndex) {
+      //for (int refIndex = 20; refIndex<21; ++refIndex) {
       ++show_progress;
       if (hdr[0]->target_len[refIndex] < c.minchrsize) continue;
 
@@ -310,6 +310,7 @@ namespace halo
 	hts_itr_destroy(iter);
       }
       if (seq != NULL) free(seq);
+      fai_destroy(fai);
     }
 
     
