@@ -243,7 +243,52 @@ function vis(index) {
       title
     )
   })
+
   hideElement(resultInfo)
+
+  charts.forEach((chart, index) => {
+    chart.on('plotly_relayout', eventData => {
+      linkYaxes(index, eventData)
+    })
+  })
+}
+
+function linkYaxes(index, eventData) {
+  if (
+    !eventData.hasOwnProperty('yaxis.range[0]') &&
+    !eventData.hasOwnProperty('yaxis2.range[0]')
+  ) {
+    return
+  }
+
+  const chart = charts[index]
+  const layout = chart.layout
+
+  chart.removeAllListeners('plotly_relayout')
+
+  let relayout
+  if ('yaxis.range[0]' in eventData) {
+    const [start, end] = [
+      eventData['yaxis.range[1]'],
+      eventData['yaxis.range[0]']
+    ]
+    relayout = Plotly.relayout(chart, {
+      'yaxis2.range': [start, end]
+    })
+  } else {
+    const [start, end] = [
+      eventData['yaxis2.range[1]'],
+      eventData['yaxis2.range[0]']
+    ]
+    relayout = Plotly.relayout(chart, {
+      'yaxis.range': [start, end]
+    })
+  }
+  relayout.then(() => {
+    chart.on('plotly_relayout', eventData => {
+      linkYaxes(index, eventData)
+    })
+  })
 }
 
 window.syncCharts = syncCharts
@@ -251,12 +296,14 @@ window.syncCharts = syncCharts
 function syncCharts(sourceIndex) {
   const [startX, endX] = charts[sourceIndex].layout.xaxis.range
   const [startY, endY] = charts[sourceIndex].layout.yaxis.range
+  const [startY2, endY2] = charts[sourceIndex].layout.yaxis2.range
 
   charts.forEach((chart, index) => {
     if (index !== sourceIndex) {
       Plotly.relayout(chart, {
         'xaxis.range': [startX, endX],
-        'yaxis.range': [startY, endY]
+        'yaxis.range': [startY, endY],
+        'yaxis2.range': [startY2, endY2],
       })
     }
   })
@@ -279,25 +326,25 @@ function renderStrandedCoverageChart(container, data, title) {
   const trace1 = {
     x: data.positions,
     y: data.counts[0].values,
-    name: data.counts[0].label,
-    type: 'bar',
-    marker: {
-      color: barColors[0]
-    }
-  }
-
-  const trace2 = {
-    x: data.positions,
-    y: data.counts[1].values,
     yaxis: 'y2',
-    name: data.counts[1].label,
+    name: data.counts[0].label,
     type: 'bar',
     marker: {
       color: barColors[1]
     }
   }
 
-  const traces = [trace1, trace2]
+  const trace2 = {
+    x: data.positions,
+    y: data.counts[1].values,
+    name: data.counts[1].label,
+    type: 'bar',
+    marker: {
+      color: barColors[0]
+    }
+  }
+
+  const traces = [trace2, trace1]
 
   const layout = {
     title: title || '',
