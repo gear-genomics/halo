@@ -61,7 +61,44 @@ namespace halo
     boost::filesystem::path genome;
     std::vector<boost::filesystem::path> files;
   };
-  
+
+
+  template<typename TConfig, typename TSampleGc>
+  inline void
+  loadGcBias(TConfig const& c, TSampleGc& sgc) {
+    int32_t minobservation = 100;
+    
+    if (c.gcbiasprof) {
+      // Parse GC bias profile
+      std::ifstream file(c.gcbias.string().c_str(), std::ios_base::in | std::ios_base::binary);
+      boost::iostreams::filtering_streambuf<boost::iostreams::input> dataIn;
+      dataIn.push(boost::iostreams::gzip_decompressor());
+      dataIn.push(file);
+      std::istream instream(&dataIn);
+      std::string gline;
+      while(std::getline(instream, gline)) {
+	if ((gline.size()) && (gline[0] == '#')) continue;
+	typedef boost::tokenizer< boost::char_separator<char> > Tokenizer;
+	boost::char_separator<char> sep("\t");
+	Tokenizer tokens(gline, sep);
+	Tokenizer::iterator tokIter = tokens.begin();
+	if (tokIter!=tokens.end()) {
+	  std::string sample = *tokIter++;
+	  int32_t gccount = boost::lexical_cast<int32_t>(*tokIter++);
+	  ++tokIter; // Skip GC fraction
+	  int32_t refcount = boost::lexical_cast<int32_t>(*tokIter++);
+	  int32_t samplecount = boost::lexical_cast<int32_t>(*tokIter++);
+	  double obsexp = boost::lexical_cast<double>(*tokIter++);
+	  for(uint32_t i = 0; i < c.sampleName.size(); ++i) {
+	    if (c.sampleName[i] == sample) {
+	      if ((refcount >= minobservation) && (samplecount >= minobservation)) sgc[i][gccount] = obsexp;
+	    }
+	  }
+	}
+      }
+      dataIn.pop();
+    }
+  }
   
   int gcbias(int argc, char **argv) {
 
@@ -325,7 +362,7 @@ namespace halo
 
     // Library statistics
     for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
-      rfile << "#" << c.sampleName[file_c] << ',' << (int32_t) isize[file_c].layout << ',' << isize[file_c].minisize << ',' << isize[file_c].median << ',' << isize[file_c].maxisize << std::endl;
+      rfile << "#isize," << c.sampleName[file_c] << ',' << (int32_t) isize[file_c].layout << ',' << isize[file_c].minisize << ',' << isize[file_c].median << ',' << isize[file_c].maxisize << std::endl;
     }
 
     // GC bias

@@ -55,6 +55,8 @@ namespace halo
     int32_t minisize;
     int32_t median;
     int32_t maxisize;
+
+    ISize() : layout(2), minisize(25), median(300), maxisize(1000) {}
   };    
   
   template<typename TIterator, typename TValue>
@@ -96,6 +98,50 @@ namespace halo
     }
   }
 
+
+  template<typename TConfig>
+  inline void
+  loadISize(TConfig const& c, std::vector<ISize>& isize) {
+    if (c.gcbiasprof) {
+      // Parse insert size
+      std::ifstream file(c.gcbias.string().c_str(), std::ios_base::in | std::ios_base::binary);
+      boost::iostreams::filtering_streambuf<boost::iostreams::input> dataIn;
+      dataIn.push(boost::iostreams::gzip_decompressor());
+      dataIn.push(file);
+      std::istream instream(&dataIn);
+      std::string gline;
+      while(std::getline(instream, gline)) {
+	if ((gline.size()) && (gline[0] == '#')) {
+	  typedef boost::tokenizer< boost::char_separator<char> > Tokenizer;
+	  boost::char_separator<char> sep(",");
+	  Tokenizer tokens(gline, sep);
+	  Tokenizer::iterator tokIter = tokens.begin();
+	  if (tokIter!=tokens.end()) {
+	    std::string key = *tokIter++;
+	    if (key == "#isize") {
+	      std::string sample = *tokIter++;
+	      uint8_t layout = boost::lexical_cast<uint8_t>(*tokIter++);
+	      int32_t minsize = boost::lexical_cast<int32_t>(*tokIter++);
+	      int32_t median = boost::lexical_cast<int32_t>(*tokIter++);
+	      int32_t maxsize = boost::lexical_cast<int32_t>(*tokIter++);
+	      for(uint32_t i = 0; i < c.sampleName.size(); ++i) {
+		if (c.sampleName[i] == sample) {
+		  isize[i].layout = layout;
+		  isize[i].minisize = minsize;
+		  isize[i].median = median;
+		  isize[i].maxisize = maxsize;
+		  break;
+		}
+	      }
+	    }
+	  }
+	} else {
+	  break;
+	}
+      }
+      dataIn.pop();
+    }
+  }
   
   template<typename TConfig>
   inline void

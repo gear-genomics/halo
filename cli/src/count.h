@@ -50,11 +50,13 @@ Contact: Gear Genomics (gear_genomics@embl.de)
 #include "util.h"
 #include "json.h"
 #include "tsv.h"
+#include "gcbias.h"
 
 namespace halo
 {
 
   struct CountConfig {
+    bool gcbiasprof;
     uint16_t minMapQual;
     uint32_t window;
     uint32_t minchrsize;
@@ -125,7 +127,13 @@ namespace halo
       std::cout << "Usage: halo " << argv[0] << " [OPTIONS] -g <ref.fa> <sc1.bam> <sc2.bam> ... <scN.bam>" << std::endl;
       std::cout << visible_options << "\n";
       return 1;
-    } 
+    }
+
+    // Check GC bias profile
+    c.gcbiasprof = false;
+    if (vm.count("gcbias")) {
+      if (boost::filesystem::exists(c.gcbias) && boost::filesystem::is_regular_file(c.gcbias) && boost::filesystem::file_size(c.gcbias)) c.gcbiasprof = true;
+    }
     
     // Show cmd
     boost::posix_time::ptime now = boost::posix_time::second_clock::local_time();
@@ -197,6 +205,18 @@ namespace halo
       } else c.sampleName[file_c] = sampleName;
     }
 
+    // Load insert sizes
+    typedef std::vector<ISize> TISizeInfo;
+    TISizeInfo isize(c.files.size(), ISize());
+    loadISize(c, isize);
+
+    // Load GC bias profile
+    typedef std::vector<double> TGcBias;
+    typedef std::vector<TGcBias> TSampleGc;
+    TSampleGc sgc(c.files.size(), TGcBias());
+    for(uint32_t file_c = 0; file_c < c.files.size(); ++file_c) sgc[file_c].resize(isize[file_c].median + 2, 1);
+    loadGcBias(c, sgc);
+    
     // Watson-Crick Counter
     typedef std::pair<uint32_t, uint32_t> TWatsonCrick;
     typedef std::vector<TWatsonCrick> TChrWC;
@@ -342,16 +362,16 @@ namespace halo
 	      if (pairQuality < c.minMapQual) continue;
 
 	      // Insert size filter
-	      int32_t isize = (rec->core.pos + alignmentLength(rec)) - rec->core.mpos;
-	      //if ((isize < c.minisize) || (isize > c.maxisize)) continue;
+	      int32_t is = (rec->core.pos + alignmentLength(rec)) - rec->core.mpos;
+	      if ((is < isize[file_c].minisize) || (is > isize[file_c].maxisize)) continue;
 
 	      // Count fragment mid-points
-	      int32_t pos = rec->core.mpos + (int32_t) (isize/2);
+	      int32_t pos = rec->core.mpos + (int32_t) (is / 2);
 	      int32_t binny = (int) (pos / c.window);
 	      if (!gBL[binny]) {
-		int32_t meanisize = 200;
-		int32_t fragstart = pos - (meanisize / 2);
-		int32_t fragend = pos + (meanisize / 2) + 1;
+		int32_t halfwin = isize[file_c].median / 2;
+		int32_t fragstart = pos - halfwin;
+		int32_t fragend = pos + halfwin + 1;
 		if ((fragstart >= 0) && (fragend < (int32_t) hdr[0]->target_len[refIndex])) {
 		  int32_t ncount = 0;
 		  for(int32_t i = fragstart; i < fragend; ++i) {
