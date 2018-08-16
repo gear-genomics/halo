@@ -218,7 +218,8 @@ namespace halo
     loadGcBias(c, sgc);
     
     // Watson-Crick Counter
-    typedef std::pair<uint32_t, uint32_t> TWatsonCrick;
+    //typedef std::pair<uint32_t, uint32_t> TWatsonCrick;
+    typedef std::pair<float, float> TWatsonCrick;
     typedef std::vector<TWatsonCrick> TChrWC;
     typedef std::vector<TChrWC> TGenomicWC;
     typedef std::vector<TGenomicWC> TSampleWC;
@@ -251,20 +252,6 @@ namespace halo
       std::string tname(hdr[0]->target_name[refIndex]);
       seq = faidx_fetch_seq(fai, tname.c_str(), 0, hdr[0]->target_len[refIndex], &seqlen);
       
-      // Ns
-      typedef std::vector<bool> TWindowBlackList;
-      TWindowBlackList gBL(sWC[0][refIndex].size(), false);
-      int32_t pos = 0;
-      for(uint32_t k = 0; k < gBL.size(); ++k) {
-	uint32_t ncount = 0;
-	for(uint32_t l = pos; ((l < pos + c.window) && (l < hdr[0]->target_len[refIndex])); ++l) {
-	  if ((seq[l] == 'n') || (seq[l] == 'N')) ++ncount;
-	}
-	double nfrac = (double) ncount / (double) c.window;
-	if (nfrac > (double) c.blacklistn / (double) 100) gBL[k] = true;
-	pos += c.window;
-      }
-
       // GC- and N-content
       typedef boost::dynamic_bitset<> TBitSet;
       TBitSet nrun(hdr[0]->target_len[refIndex], false);
@@ -277,8 +264,8 @@ namespace halo
       // Parse BAM
       for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
 	// Qualities and alignment length
-	typedef boost::unordered_map<std::size_t, uint8_t> TQualities;
-	TQualities qualities;
+	typedef boost::unordered_map<std::size_t, bool> TMateMap;
+	TMateMap mateMap;
 
 	hts_itr_t* iter = sam_itr_queryi(idx[file_c], refIndex, 0, hdr[0]->target_len[refIndex]);
 	bam1_t* rec = bam_init1();	
@@ -349,17 +336,12 @@ namespace halo
 	      // First read
 	      lastAlignedPosReads.insert(hash_string(bam_get_qname(rec)));
 	      std::size_t hv = hash_pair(rec);
-	      qualities[hv]= rec->core.qual;
+	      mateMap[hv] = true;
 	    } else {
 	      // Second read
 	      std::size_t hv = hash_pair_mate(rec);
-	      uint8_t pairQuality = 0;
-	      if (qualities.find(hv) == qualities.end()) continue; // Mate discarded
-	      pairQuality = std::min((uint8_t) qualities[hv], (uint8_t) rec->core.qual);
-	      qualities[hv] = 0;
-
-	      // Pair quality
-	      if (pairQuality < c.minMapQual) continue;
+	      if ((mateMap.find(hv) == mateMap.end()) || (!mateMap[hv])) continue; // Mate discarded
+	      mateMap[hv] = false;
 
 	      // Insert size filter
 	      int32_t is = (rec->core.pos + alignmentLength(rec)) - rec->core.mpos;
@@ -367,24 +349,22 @@ namespace halo
 
 	      // Count fragment mid-points
 	      int32_t pos = rec->core.mpos + (int32_t) (is / 2);
-	      int32_t binny = (int) (pos / c.window);
-	      if (!gBL[binny]) {
-		int32_t halfwin = isize[file_c].median / 2;
-		int32_t fragstart = pos - halfwin;
-		int32_t fragend = pos + halfwin + 1;
-		if ((fragstart >= 0) && (fragend < (int32_t) hdr[0]->target_len[refIndex])) {
-		  int32_t ncount = 0;
-		  for(int32_t i = fragstart; i < fragend; ++i) {
-		    if (nrun[i]) ++ncount;
-		  }
-		  if (!ncount) {
-		    if (rec->core.flag & BAM_FREAD1) { 
-		      if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].second;
-		      else ++sWC[file_c][refIndex][binny].first;
-		    } else {
-		      if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].first;
-		      else ++sWC[file_c][refIndex][binny].second;
-		    }
+	      int32_t halfwin = isize[file_c].median / 2;
+	      int32_t fragstart = pos - halfwin;
+	      int32_t fragend = pos + halfwin + 1;
+	      if ((fragstart >= 0) && (fragend < (int32_t) hdr[0]->target_len[refIndex])) {
+		int32_t ncount = 0;
+		for(int32_t i = fragstart; i < fragend; ++i) {
+		  if (nrun[i]) ++ncount;
+		}
+		if (!ncount) {
+		  int32_t binny = (int) (pos / c.window);
+		  if (rec->core.flag & BAM_FREAD1) { 
+		    if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].second;
+		    else ++sWC[file_c][refIndex][binny].first;
+		  } else {
+		    if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].first;
+		    else ++sWC[file_c][refIndex][binny].second;
 		  }
 		}
 	      }
@@ -396,8 +376,66 @@ namespace halo
       }
       if (seq != NULL) free(seq);
       fai_destroy(fai);
-    }
 
+      // Blacklist bins
+      int32_t pos = 0;
+      for(uint32_t k = 0; k < sWC[0][refIndex].size(); ++k) {
+	uint32_t ncount = 0;
+	for(uint32_t l = pos; ((l < pos + c.window) && (l < hdr[0]->target_len[refIndex])); ++l) {
+	  if (nrun[l]) ++ncount;
+	}
+	double nfrac = (double) ncount / (double) c.window;
+	if (nfrac > (double) c.blacklistn / (double) 100) {
+	  // Blacklist window
+	  for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+	    sWC[file_c][refIndex][k].first = 0;
+	    sWC[file_c][refIndex][k].second = 0;
+	  }
+	}
+	pos += c.window;
+      }
+
+      // GC correction
+      if (c.gcbiasprof) {
+	for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+	  std::vector<int32_t> gcCumSum(sWC[0][refIndex].size(), 0);
+	  std::vector<int32_t> gcCount(sWC[0][refIndex].size(), 0);
+	  int32_t halfwin = (int32_t) (isize[file_c].median / 2);
+	  int32_t nsum = 0;
+	  int32_t gcsum = 0;
+	  for(int32_t pos = halfwin; pos < (int32_t) hdr[0]->target_len[refIndex] - halfwin; ++pos) {
+	    if (pos == halfwin) {
+	      for(int32_t i = pos - halfwin; i<pos+halfwin+1; ++i) {
+		nsum += nrun[i];
+		gcsum += gcref[i];
+	      }
+	    } else {
+	      nsum -= nrun[pos - halfwin - 1];
+	      gcsum -= gcref[pos - halfwin - 1];
+	      nsum += nrun[pos + halfwin];
+	      gcsum += gcref[pos + halfwin];
+	    }
+	    if (!nsum) {
+	      int32_t binny = (int) (pos / c.window);
+	      ++gcCount[binny];
+	      gcCumSum[binny] += gcsum;
+	    }
+	  }
+	  // Adjust Counts
+	  for(uint32_t k = 0; k < sWC[0][refIndex].size(); ++k) {
+	    if (gcCount[k]) {
+	      int32_t lengc = isize[file_c].median + 2;
+	      int32_t avgc = gcCumSum[k] / gcCount[k];
+	      if ((avgc < lengc) && (sgc[file_c][avgc] != 0)) {
+		sWC[file_c][refIndex][k].first *= (1.0 / sgc[file_c][avgc]);
+		sWC[file_c][refIndex][k].second *= (1.0 / sgc[file_c][avgc]);
+	      }
+	    }
+	  }
+	}
+      }
+    }
+    
     // Output
     now = boost::posix_time::second_clock::local_time();
     std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "Output Single Cell Counts" << std::endl;
