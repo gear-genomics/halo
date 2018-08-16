@@ -395,6 +395,7 @@ namespace halo
 	hts_itr_destroy(iter);
       }
       if (seq != NULL) free(seq);
+      fai_destroy(fai);
     }
 
     // Output
