@@ -448,6 +448,7 @@ namespace halo
 
     // Estimate noise
     double totalSSE = 0;
+    double totalCount = 0;
     for(uint32_t file_c = 0; file_c < c.files.size(); ++file_c) {
       int64_t cumSum = 0;
       int32_t cumCount = 0;
@@ -461,18 +462,21 @@ namespace halo
       }
       double avgDepth = (double) cumSum / (double) cumCount;
       double sse = 0;
+      double localc = 0;
       for (int32_t refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
 	for(uint32_t k = 0; k < sWC[file_c][refIndex].size(); ++k) {
 	  if (sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second > 0) {
 	    double winDepth = sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second;
 	    sse += (avgDepth - winDepth) * (avgDepth - winDepth);
+	    ++totalCount;
+	    ++localc;
 	  }
 	}
       }
-      std::cout << c.sampleName[file_c] << ",AvgDepth=" <<  avgDepth << ",SSE=" << sse << std::endl;
+      std::cout << c.sampleName[file_c] << ",AvgDepth=" <<  avgDepth << ",MSE=" << std::sqrt(sse / localc) << std::endl;
       totalSSE += sse;
     }
-    std::cout << "SSE=" << totalSSE << std::endl;
+    std::cout << "MSE=" << std::sqrt(totalSSE / totalCount) << std::endl;
     
     
     // Output
