@@ -56,6 +56,7 @@ namespace halo
   struct GcBiasConfig {
     uint16_t minMapQual;
     uint32_t minchrsize;
+    int32_t percentid;
     std::vector<std::string> sampleName;
     boost::filesystem::path outfile;
     boost::filesystem::path genome;
@@ -66,8 +67,6 @@ namespace halo
   template<typename TConfig, typename TSampleGc>
   inline void
   loadGcBias(TConfig const& c, TSampleGc& sgc) {
-    int32_t minobservation = 100;
-    
     if (c.gcbiasprof) {
       // Parse GC bias profile
       std::ifstream file(c.gcbias.string().c_str(), std::ios_base::in | std::ios_base::binary);
@@ -91,7 +90,9 @@ namespace halo
 	  double obsexp = boost::lexical_cast<double>(*tokIter++);
 	  for(uint32_t i = 0; i < c.sampleName.size(); ++i) {
 	    if (c.sampleName[i] == sample) {
-	      if ((refcount >= minobservation) && (samplecount >= minobservation)) sgc[i][gccount] = obsexp;
+	      if (obsexp > 1.75) sgc[i][gccount] = 1.75;
+	      else if (obsexp < 0.25) sgc[i][gccount] = 0.25;
+	      else sgc[i][gccount] = obsexp;
 	    }
 	  }
 	}
@@ -114,6 +115,7 @@ namespace halo
       ("help,?", "show help message")
       ("genome,g", boost::program_options::value<boost::filesystem::path>(&c.genome), "genome fasta file")
       ("map-qual,q", boost::program_options::value<uint16_t>(&c.minMapQual)->default_value(1), "min. mapping quality")
+      ("percentid,p", boost::program_options::value<int32_t>(&c.percentid)->default_value(98), "min. required percent identity")
       ("minchrsize,m", boost::program_options::value<uint32_t>(&c.minchrsize)->default_value(10000000), "min. chr size")
       ("outfile,o", boost::program_options::value<boost::filesystem::path>(&c.outfile)->default_value("gc.prof"), "output file")
       ;
@@ -300,6 +302,51 @@ namespace halo
 	    lastAlignedPosReads.clear();
 	    lastAlignedPos = rec->core.pos;
 	  }
+
+	  // Sequence
+	  std::string sequence;
+	  sequence.resize(rec->core.l_qseq);
+	  uint8_t* seqptr = bam_get_seq(rec);
+	  for (int i = 0; i < rec->core.l_qseq; ++i) sequence[i] = "=ACMGRSVTWYHKDBN"[bam_seqi(seqptr, i)];
+
+	  // Reference slice
+	  std::string refslice = boost::to_upper_copy(std::string(seq + rec->core.pos, seq + lastAlignedPosition(rec)));
+	      
+	  // Percent identity
+	  uint32_t rp = 0; // reference pointer
+	  uint32_t sp = 0; // sequence pointer
+	  uint32_t* cigar = bam_get_cigar(rec);
+	  int32_t matchCount = 0;
+	  int32_t mismatchCount = 0;
+	  for (std::size_t i = 0; i < rec->core.n_cigar; ++i) {
+	    if ((bam_cigar_op(cigar[i]) == BAM_CMATCH) || (bam_cigar_op(cigar[i]) == BAM_CEQUAL) || (bam_cigar_op(cigar[i]) == BAM_CDIFF)) {
+	      // match or mismatch
+	      for(std::size_t k = 0; k<bam_cigar_oplen(cigar[i]);++k) {
+		if (sequence[sp] == refslice[rp]) ++matchCount;
+		else ++mismatchCount;
+		++sp;
+		++rp;
+	      }
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CDEL) {
+	      ++mismatchCount;
+	      rp += bam_cigar_oplen(cigar[i]);
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CINS) {
+	      ++mismatchCount;
+	      sp += bam_cigar_oplen(cigar[i]);
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CSOFT_CLIP) {
+	      sp += bam_cigar_oplen(cigar[i]);
+	    } else if(bam_cigar_op(cigar[i]) == BAM_CHARD_CLIP) {
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CREF_SKIP) {
+	      rp += bam_cigar_oplen(cigar[i]);
+	    } else {
+	      std::cerr << "Unknown Cigar options" << std::endl;
+	      return 1;
+	    }
+	  }
+	  double percid = 0;
+	  if (matchCount + mismatchCount > 0) percid = (double) matchCount / (double) (matchCount + mismatchCount);
+	  if (percid < ((double) c.percentid / (double) 100)) continue;
+	  
 	  
 	  // Paired-end data
 	  if (rec->core.flag & BAM_FPAIRED) {

@@ -354,17 +354,19 @@ namespace halo
 	      int32_t fragend = pos + halfwin + 1;
 	      if ((fragstart >= 0) && (fragend < (int32_t) hdr[0]->target_len[refIndex])) {
 		int32_t ncount = 0;
+		int32_t gcsum = 0;
 		for(int32_t i = fragstart; i < fragend; ++i) {
 		  if (nrun[i]) ++ncount;
+		  if (gcref[i]) ++gcsum;
 		}
 		if (!ncount) {
 		  int32_t binny = (int) (pos / c.window);
 		  if (rec->core.flag & BAM_FREAD1) { 
-		    if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].second;
-		    else ++sWC[file_c][refIndex][binny].first;
+		    if (rec->core.flag & BAM_FREVERSE) sWC[file_c][refIndex][binny].second += (1.0 / sgc[file_c][gcsum]);
+		    else sWC[file_c][refIndex][binny].first += (1.0 / sgc[file_c][gcsum]);
 		  } else {
-		    if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].first;
-		    else ++sWC[file_c][refIndex][binny].second;
+		    if (rec->core.flag & BAM_FREVERSE) sWC[file_c][refIndex][binny].first += (1.0 / sgc[file_c][gcsum]);
+		    else sWC[file_c][refIndex][binny].second += (1.0 / sgc[file_c][gcsum]);
 		  }
 		}
 	      }
@@ -422,19 +424,56 @@ namespace halo
 	    }
 	  }
 	  // Adjust Counts
+	  /*
 	  for(uint32_t k = 0; k < sWC[0][refIndex].size(); ++k) {
 	    if (gcCount[k]) {
 	      int32_t lengc = isize[file_c].median + 2;
 	      int32_t avgc = gcCumSum[k] / gcCount[k];
-	      if ((avgc < lengc) && (sgc[file_c][avgc] != 0)) {
-		sWC[file_c][refIndex][k].first *= (1.0 / sgc[file_c][avgc]);
-		sWC[file_c][refIndex][k].second *= (1.0 / sgc[file_c][avgc]);
+	      if (avgc < lengc) {
+		if (sgc[file_c][avgc] != 0) {
+		  sWC[file_c][refIndex][k].first *= (1.0 / sgc[file_c][avgc]);
+		  sWC[file_c][refIndex][k].second *= (1.0 / sgc[file_c][avgc]);
+		} else {
+		  // Blacklist
+		  sWC[file_c][refIndex][k].first = 0;
+		  sWC[file_c][refIndex][k].second = 0;
+		}
 	      }
 	    }
 	  }
+	  */
 	}
       }
     }
+
+    // Estimate noise
+    double totalSSE = 0;
+    for(uint32_t file_c = 0; file_c < c.files.size(); ++file_c) {
+      int64_t cumSum = 0;
+      int32_t cumCount = 0;
+      for (int32_t refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
+	for(uint32_t k = 0; k < sWC[file_c][refIndex].size(); ++k) {
+	  if (sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second > 0) {
+	    cumSum += sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second;
+	    ++cumCount;
+	  }
+	}
+      }
+      double avgDepth = (double) cumSum / (double) cumCount;
+      double sse = 0;
+      for (int32_t refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
+	for(uint32_t k = 0; k < sWC[file_c][refIndex].size(); ++k) {
+	  if (sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second > 0) {
+	    double winDepth = sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second;
+	    sse += (avgDepth - winDepth) * (avgDepth - winDepth);
+	  }
+	}
+      }
+      std::cout << c.sampleName[file_c] << ",AvgDepth=" <<  avgDepth << ",SSE=" << sse << std::endl;
+      totalSSE += sse;
+    }
+    std::cout << "SSE=" << totalSSE << std::endl;
+    
     
     // Output
     now = boost::posix_time::second_clock::local_time();
