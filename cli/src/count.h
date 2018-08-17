@@ -343,6 +343,9 @@ namespace halo
 	      if ((mateMap.find(hv) == mateMap.end()) || (!mateMap[hv])) continue; // Mate discarded
 	      mateMap[hv] = false;
 
+	      // Read-pair orientation
+	      if (layout(rec) != isize[file_c].layout) continue;
+	      
 	      // Insert size filter
 	      int32_t is = (rec->core.pos + alignmentLength(rec)) - rec->core.mpos;
 	      if ((is < isize[file_c].minisize) || (is > isize[file_c].maxisize)) continue;
@@ -426,7 +429,7 @@ namespace halo
 	  }
 	}
       }
-      std::cout << c.sampleName[file_c] << ",AvgDepth=" <<  avgDepth << ",MSE=" << std::sqrt(sse / localc) << std::endl;
+      std::cout << c.sampleName[file_c] << ",Default=" << (int32_t) isize[file_c].layout << ",Median=" << isize[file_c].median << ",AvgDepth=" <<  avgDepth << ",MSE=" << std::sqrt(sse / localc) << std::endl;
       totalSSE += sse;
     }
     std::cout << "MSE=" << std::sqrt(totalSSE / totalCount) << std::endl;

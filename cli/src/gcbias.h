@@ -365,6 +365,9 @@ namespace halo
 	      if ((mateMap.find(hv) == mateMap.end()) || (!mateMap[hv])) continue; // Mate discarded
 	      mateMap[hv] = false;
 
+	      // Read-pair orientation
+	      if (layout(rec) != isize[file_c].layout) continue;
+	      
 	      // Insert size filter
 	      int32_t is = (rec->core.pos + alignmentLength(rec)) - rec->core.mpos;
 	      if ((is < isize[file_c].minisize) || (is > isize[file_c].maxisize)) continue;
