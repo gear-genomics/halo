@@ -379,6 +379,7 @@ namespace halo
       if (seq != NULL) free(seq);
       fai_destroy(fai);
 
+      
       // Blacklist bins
       int32_t pos = 0;
       for(uint32_t k = 0; k < sWC[0][refIndex].size(); ++k) {
@@ -395,54 +396,6 @@ namespace halo
 	  }
 	}
 	pos += c.window;
-      }
-
-      // GC correction
-      if (c.gcbiasprof) {
-	for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
-	  std::vector<int32_t> gcCumSum(sWC[0][refIndex].size(), 0);
-	  std::vector<int32_t> gcCount(sWC[0][refIndex].size(), 0);
-	  int32_t halfwin = (int32_t) (isize[file_c].median / 2);
-	  int32_t nsum = 0;
-	  int32_t gcsum = 0;
-	  for(int32_t pos = halfwin; pos < (int32_t) hdr[0]->target_len[refIndex] - halfwin; ++pos) {
-	    if (pos == halfwin) {
-	      for(int32_t i = pos - halfwin; i<pos+halfwin+1; ++i) {
-		nsum += nrun[i];
-		gcsum += gcref[i];
-	      }
-	    } else {
-	      nsum -= nrun[pos - halfwin - 1];
-	      gcsum -= gcref[pos - halfwin - 1];
-	      nsum += nrun[pos + halfwin];
-	      gcsum += gcref[pos + halfwin];
-	    }
-	    if (!nsum) {
-	      int32_t binny = (int) (pos / c.window);
-	      ++gcCount[binny];
-	      gcCumSum[binny] += gcsum;
-	    }
-	  }
-	  // Adjust Counts
-	  /*
-	  for(uint32_t k = 0; k < sWC[0][refIndex].size(); ++k) {
-	    if (gcCount[k]) {
-	      int32_t lengc = isize[file_c].median + 2;
-	      int32_t avgc = gcCumSum[k] / gcCount[k];
-	      if (avgc < lengc) {
-		if (sgc[file_c][avgc] != 0) {
-		  sWC[file_c][refIndex][k].first *= (1.0 / sgc[file_c][avgc]);
-		  sWC[file_c][refIndex][k].second *= (1.0 / sgc[file_c][avgc]);
-		} else {
-		  // Blacklist
-		  sWC[file_c][refIndex][k].first = 0;
-		  sWC[file_c][refIndex][k].second = 0;
-		}
-	      }
-	    }
-	  }
-	  */
-	}
       }
     }
 

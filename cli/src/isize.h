@@ -120,13 +120,13 @@ namespace halo
 	    std::string key = *tokIter++;
 	    if (key == "#isize") {
 	      std::string sample = *tokIter++;
-	      uint8_t layout = boost::lexical_cast<uint8_t>(*tokIter++);
+	      int32_t layout = boost::lexical_cast<int32_t>(*tokIter++);
 	      int32_t minsize = boost::lexical_cast<int32_t>(*tokIter++);
 	      int32_t median = boost::lexical_cast<int32_t>(*tokIter++);
 	      int32_t maxsize = boost::lexical_cast<int32_t>(*tokIter++);
 	      for(uint32_t i = 0; i < c.sampleName.size(); ++i) {
 		if (c.sampleName[i] == sample) {
-		  isize[i].layout = layout;
+		  isize[i].layout = (uint8_t) layout;
 		  isize[i].minisize = minsize;
 		  isize[i].median = median;
 		  isize[i].maxisize = maxsize;
