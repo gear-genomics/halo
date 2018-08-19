@@ -255,18 +255,21 @@ function vis(index) {
 
 function linkYaxes(index, eventData) {
   if (
-    !eventData.hasOwnProperty('yaxis.range[0]') &&
-    !eventData.hasOwnProperty('yaxis2.range[0]')
+    (!eventData.hasOwnProperty('yaxis.range[0]') &&
+      !eventData.hasOwnProperty('yaxis.autorange') &&
+      !eventData.hasOwnProperty('yaxis2.range[0]') &&
+      !eventData.hasOwnProperty('yaxis2.autorange')) ||
+    (eventData.hasOwnProperty('yaxis.autorange') &&
+      eventData.hasOwnProperty('yaxis2.autorange'))
   ) {
     return
   }
 
   const chart = charts[index]
-  const layout = chart.layout
-
   chart.removeAllListeners('plotly_relayout')
 
   let relayout
+
   if ('yaxis.range[0]' in eventData) {
     const [start, end] = [
       eventData['yaxis.range[1]'],
@@ -275,7 +278,7 @@ function linkYaxes(index, eventData) {
     relayout = Plotly.relayout(chart, {
       'yaxis2.range': [start, end]
     })
-  } else {
+  } else if ('yaxis2.range[0]' in eventData) {
     const [start, end] = [
       eventData['yaxis2.range[1]'],
       eventData['yaxis2.range[0]']
@@ -283,7 +286,16 @@ function linkYaxes(index, eventData) {
     relayout = Plotly.relayout(chart, {
       'yaxis.range': [start, end]
     })
+  } else {
+    // reset per double click
+    const key = eventData.hasOwnProperty('yaxis.autorange')
+      ? 'yaxis2.autorange'
+      : 'yaxis.autorange'
+    relayout = Plotly.relayout(chart, {
+      [key]: true
+    })
   }
+
   relayout.then(() => {
     chart.on('plotly_relayout', eventData => {
       linkYaxes(index, eventData)
@@ -303,7 +315,7 @@ function syncCharts(sourceIndex) {
       Plotly.relayout(chart, {
         'xaxis.range': [startX, endX],
         'yaxis.range': [startY, endY],
-        'yaxis2.range': [startY2, endY2],
+        'yaxis2.range': [startY2, endY2]
       })
     }
   })
