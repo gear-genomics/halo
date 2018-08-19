@@ -11,7 +11,7 @@ The `halo` command line tool is needed to compute the input file for the `halo` 
 ### Installation
 
 ```bash
-git clone https://github.com/gear-genomics/halo.git
+git clone --recurse-submodules https://github.com/gear-genomics/halo.git
 cd halo/cli
 make all
 make install
