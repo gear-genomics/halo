@@ -16,7 +16,7 @@
     "rimraf": "^2.7.1"
   },
   "dependencies": {
-    "axios": "^0.18.1",
+    "axios": "^0.21.1",
     "pako": "^1.0.10"
   }
 }
