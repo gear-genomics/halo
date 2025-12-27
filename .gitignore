@@ -1,0 +1,5 @@
+.htslib
+src/halo
+
+*.pyc
+*~
