@@ -1,5 +1,6 @@
 [![C/C++ CI](https://github.com/gear-genomics/halo/workflows/C/C++%20CI/badge.svg)](https://github.com/gear-genomics/halo/actions)
 [![Docker CI](https://github.com/gear-genomics/halo/workflows/Docker%20CI/badge.svg)](https://hub.docker.com/r/geargenomics/halo/)
+[![GitHub Releases](https://img.shields.io/github/release/gear-genomics/halo.svg)](https://github.com/gear-genomics/halo/releases)
 
 # Halo: Haplotype processor
 
