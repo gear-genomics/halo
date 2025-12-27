@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, shrink-to-fit=no"
     />
-    <title>halo: haplotype processor | GEAR</title>
+    <title>Halo: haplotype processor | GEAR</title>
     <meta
       name="description"
       content="Browse haplotype-resolved data, e.g. from Strand-seq experiments."
@@ -19,9 +19,9 @@
   <body>
     <header class="px-0 py-4">
       <div class="container">
-        <h1 class="display-4 app-name">halo</h1>
+        <h1 class="display-4 app-name">Halo</h1>
         <p class="lead">Browse haplotype-resolved data.</p>
-	<a
+        <a
           class="plain"
           href="https://www.gear-genomics.com/contact"
           target="_blank"
@@ -29,7 +29,7 @@
           <i class="fas fa-question"></i> Get help
         </a>
         ·
-	<a
+        <a
           class="plain"
           href="https://www.gear-genomics.com/citation"
           target="_blank"
@@ -60,6 +60,9 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" href="#result-tab" id="link-results">Results</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#help-tab">Help</a>
         </li>
       </ul>
       <div class="tab-content" id="main-tabs">
@@ -129,6 +132,32 @@
               </button>
             </div>
             <div id="charts-container"></div>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="help-tab">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">How to use halo</h5>
+              <ol class="mb-3">
+                <li>Select a <code>.json</code> or <code>.json.gz</code> halo file in the <strong>Input</strong> tab.</li>
+                <li>Click <strong>Launch Analysis</strong> to load and render the plots.</li>
+                <li>Switch to <strong>Results</strong> to explore by sample or chromosome, zoom, and sync charts.</li>
+                <li>Use <strong>Show Example</strong> to load the bundled demo dataset if you don’t have a file handy.</li>
+              </ol>
+              <p class="mb-2">
+                Example dataset:
+                <a href="static/HG00733.6-samples.json.gz" target="_blank">
+                  HG00733.6-samples.json.gz
+                </a>
+              </p>
+              <p class="mb-0">
+                Visit the
+                <a href="https://github.com/gear-genomics/halo/" target="_blank">halo</a>
+                command-line application for usage instructions
+		on how to create the <code>.json</code> input file.
+              </p>
+            </div>
           </div>
         </div>
       </div>

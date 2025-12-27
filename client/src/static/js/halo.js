@@ -7,7 +7,7 @@ let view = 'samples'
 let charts = []
 const barColors = ['#658c8b', '#f4a45f']
 
-$('#mainTab a').on('click', function(e) {
+$('#mainTab a').on('click', function (e) {
   e.preventDefault()
   $(this).tab('show')
 })
@@ -15,12 +15,14 @@ $('#mainTab a').on('click', function(e) {
 const fileInput = document.getElementById('inputFile')
 const resultLink = document.getElementById('link-results')
 const resultInfo = document.getElementById('result-info')
+const resultError = document.getElementById('result-error')
+const errorMessage = document.getElementById('error-message')
 const sampleSelect = document.getElementById('selectSample')
 const resultContainer = document.getElementById('result-container')
 const chartsContainer = document.getElementById('charts-container')
 
 const submitButton = document.getElementById('btn-submit')
-submitButton.addEventListener('click', function() {
+submitButton.addEventListener('click', function () {
   resultLink.click()
   run()
 })
@@ -41,10 +43,14 @@ sampleSelect.addEventListener('change', handleChangeSample)
 var inputData, samples, chromosomes
 
 function run() {
+  hideError()
+
   const file = fileInput.files[0]
 
-  // TODO error handling
-  if (file === undefined) return
+  if (!file) {
+    showError('Please choose a halo .json or .json.gz file before launching.')
+    return
+  }
 
   view = 'samples'
   trellisSampleButton.classList.add('active')
@@ -54,24 +60,38 @@ function run() {
   showElement(resultInfo)
 
   const fileReader = new FileReader()
-  const isGzip = /\.gz$/.test(file.name)
+  const isGzip = /\.gz$/i.test(file.name)
+
+  fileReader.onerror = () => {
+    showError('Could not read the selected file. Please try again.')
+  }
+
+  fileReader.onload = event => {
+    try {
+      let content = event.target.result
+      if (isGzip) {
+        content = pako.ungzip(content, { to: 'string' })
+      }
+      const parsed = JSON.parse(content)
+      inputData = parsed.data
+      setupSamples()
+      setupChromosomes()
+      setupSelect()
+      setTimeout(() => {
+        vis(0)
+      }, 0)
+    } catch (err) {
+      console.error(err)
+      showError(
+        'The file could not be parsed. Ensure it is valid JSON (optionally gzipped) in halo format.'
+      )
+    }
+  }
+
   if (isGzip) {
     fileReader.readAsArrayBuffer(file)
   } else {
     fileReader.readAsText(file)
-  }
-  fileReader.onload = event => {
-    let content = event.target.result
-    if (isGzip) {
-      content = pako.ungzip(content, { to: 'string' })
-    }
-    inputData = JSON.parse(content).data
-    setupSamples()
-    setupChromosomes()
-    setupSelect()
-    setTimeout(() => {
-      vis(0)
-    }, 0)
   }
 }
 
@@ -374,6 +394,7 @@ function renderStrandedCoverageChart(container, data, title) {
 }
 
 function showExample() {
+  hideError()
   trellisSampleButton.classList.add('active')
   trellisChromosomeButton.classList.remove('active')
   view = 'samples'
@@ -383,14 +404,18 @@ function showExample() {
   showElement(resultInfo)
   resultLink.click()
 
-  if (exampleData) {
-    inputData = exampleData
+  const loadData = data => {
+    inputData = data
     setupSamples()
     setupChromosomes()
     setupSelect()
     setTimeout(() => {
       vis(0)
     }, 0)
+  }
+
+  if (exampleData) {
+    loadData(exampleData)
   } else {
     axios
       .get(urlExample, {
@@ -399,17 +424,11 @@ function showExample() {
       .then(response => {
         const content = pako.ungzip(response.data, { to: 'string' })
         exampleData = JSON.parse(content).data
-        inputData = exampleData
-        setupSamples()
-        setupChromosomes()
-        setupSelect()
-        setTimeout(() => {
-          vis(0)
-        }, 0)
+        loadData(exampleData)
       })
       .catch(error => {
-        // FIXME proper error handling
         console.error(error)
+        showError('Unable to load the example dataset. Please try again later.')
       })
   }
 }
@@ -420,4 +439,16 @@ function showElement(element) {
 
 function hideElement(element) {
   element.classList.add('d-none')
+}
+
+function showError(message) {
+  errorMessage.textContent = message
+  hideElement(resultContainer)
+  hideElement(resultInfo)
+  showElement(resultError)
+}
+
+function hideError() {
+  errorMessage.textContent = ''
+  hideElement(resultError)
 }
