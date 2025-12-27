@@ -1,26 +1,3 @@
-/*
-============================================================================
-Haplotype-resolved data analysis methods
-============================================================================
-Copyright (C) 2018
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-============================================================================
-Contact: Gear Genomics (gear_genomics@embl.de)
-============================================================================
-*/
-
 #ifndef GCBIAS_H
 #define GCBIAS_H
 
@@ -40,7 +17,6 @@ Contact: Gear Genomics (gear_genomics@embl.de)
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/progress.hpp>
 #include <boost/dynamic_bitset.hpp>
 
 #include <htslib/faidx.h>
@@ -231,10 +207,8 @@ namespace halo
     // Parse bam (contig by contig)
     now = boost::posix_time::second_clock::local_time();
     std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "Estimate GC bias" << std::endl;
-    boost::progress_display show_progress( hdr[0]->n_targets );
     for (int refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
       //for (int refIndex = 20; refIndex<21; ++refIndex) {
-      ++show_progress;
       if (hdr[0]->target_len[refIndex] < c.minchrsize) continue;
 
       // Ignore sex chromosomes
@@ -404,7 +378,6 @@ namespace halo
     // Output
     now = boost::posix_time::second_clock::local_time();
     std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "Output GC bias" << std::endl;
-    boost::progress_display sp( c.files.size() );
 
     boost::iostreams::filtering_ostream rfile;
     rfile.push(boost::iostreams::gzip_compressor());
@@ -418,7 +391,6 @@ namespace halo
     // GC bias
     rfile << "#sample\tgcsum\tgcfrac\treference\tobservation\tobsexp" << std::endl;
     for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
-      ++sp;
       double totalSample = 0;
       double totalRef = 0;
       for(uint32_t i = 0; i < refgc[file_c].size(); ++i) {

@@ -1,26 +1,3 @@
-/*
-============================================================================
-Haplotype-resolved data analysis methods
-============================================================================
-Copyright (C) 2018
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-============================================================================
-Contact: Gear Genomics (gear_genomics@embl.de)
-============================================================================
-*/
-
 #ifndef ISIZE_H
 #define ISIZE_H
 
@@ -40,7 +17,6 @@ Contact: Gear Genomics (gear_genomics@embl.de)
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/progress.hpp>
 #include <boost/dynamic_bitset.hpp>
 
 #include <htslib/faidx.h>
@@ -155,9 +131,7 @@ namespace halo
     
     boost::posix_time::ptime now = boost::posix_time::second_clock::local_time();
     std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "Estimate Insert Size" << std::endl;
-    boost::progress_display show_progress( hdr[0]->n_targets );
     for (int refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
-      ++show_progress;
       for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
 	// Mate map
 	typedef boost::unordered_map<std::size_t, bool> TMate;

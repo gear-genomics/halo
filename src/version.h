@@ -1,26 +1,3 @@
-/*
-============================================================================
-Haplotype-resolved data analysis methods
-============================================================================
-Copyright (C) 2018
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-============================================================================
-Contact: Gear Genomics (gear_genomics@embl.de)
-============================================================================
-*/
-
 #ifndef VERSION_H
 #define VERSION_H
 
@@ -34,7 +11,7 @@ namespace halo
     void printTitle(std::string const& title) 
     {
       std::cout << "**********************************************************************" << std::endl;
-      std::cout << "Program: halo" << std::endl;
+      std::cout << "Program: Halo" << std::endl;
       std::cout << "This is free software, and you are welcome to redistribute it under" << std::endl;
       std::cout << "certain conditions (GPL); for license details use '-l'." << std::endl;
       std::cout << "This program comes with ABSOLUTELY NO WARRANTY; for details use '-w'." << std::endl;

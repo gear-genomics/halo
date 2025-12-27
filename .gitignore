@@ -1,5 +1,6 @@
 .htslib
 src/halo
+bin/
 
 *.pyc
 *~
