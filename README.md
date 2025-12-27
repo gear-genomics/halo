@@ -12,7 +12,7 @@ The `halo` command-line tool is available as a pre-compiled statically linked bi
 
 ```bash
 git clone --recursive https://github.com/gear-genomics/halo.git
-cd halo/cli
+cd halo/
 make all
 make install
 ```
