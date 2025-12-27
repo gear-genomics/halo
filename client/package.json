@@ -3,20 +3,15 @@
   "private": true,
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
-    "build": "rimraf dist && parcel build src/index.html --no-cache --no-source-maps --public-url ./",
+    "build": "npx rimraf dist && parcel build src/index.html --no-cache --no-source-maps --public-url ./",
     "dev": "parcel src/index.html --no-cache --open"
   },
   "keywords": [],
   "author": "",
-  "license": "MIT",
+  "license": "",
   "devDependencies": {
-    "parcel-bundler": "^1.12.5",
-    "rimraf": "^2.7.1"
-  },
-  "dependencies": {
-    "axios": "^1.12.0",
-    "pako": "^1.0.10"
+    "parcel": "^2.15.4",
+    "rimraf": "^6.0.1"
   }
 }
