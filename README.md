@@ -1,12 +1,6 @@
-[![Build Status](https://travis-ci.org/gear-genomics/halo.svg?branch=master)](https://travis-ci.org/gear-genomics/halo)
+# Halo: Haplotype processor
 
-# halo: haplotype processor
-
-[GEAR](https://gear.embl.de) hosts the `halo` web application at https://gear.embl.de/halo.
-
-## Command line tool
-
-The `halo` command line tool is needed to compute the input file for the `halo` web application.
+[GEAR](https://www.gear-genomics.com/) hosts the `halo` web application at [https://www.gear-genomics.com/halo/](https://www.gear-genomics.com/halo/). The `halo` command-line tool is needed to compute the input file for the `halo` web application.
 
 ### Installation
 
