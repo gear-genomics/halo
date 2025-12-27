@@ -11,7 +11,7 @@
 The `halo` command-line tool is available as a pre-compiled statically linked binary from [Halo's github release page](https://github.com/gear-genomics/halo/releases/), as a singularity container [SIF file](https://github.com/gear-genomics/halo/releases/) or as a minimal [Docker container](https://hub.docker.com/r/geargenomics/halo/).
 
 ```bash
-git clone --recurse-submodules https://github.com/gear-genomics/halo.git
+git clone --recursive https://github.com/gear-genomics/halo.git
 cd halo/cli
 make all
 make install
