@@ -25,7 +25,7 @@ Halo is used to create the input JSON file for the [web application](https://www
 ./bin/halo -h
 ```
 
-This command-line application was designed for [Strand-Seq]() single-cell DNA data but the viewer can also be used for any haplotype-resolved data. To convert the Strand-Seq alignment data into JSON format please provide one input BAM file for each input cell, e.g.:
+This command-line application was designed for [Strand-Seq](https://en.wikipedia.org/wiki/Single-cell_DNA_template_strand_sequencing) single-cell DNA data but the viewer can also be used for any haplotype-resolved data. To convert the Strand-Seq alignment data into JSON format please provide one input BAM file for each input cell, e.g.:
 
 ```bash
 halo count -g hg38.fa -o sc.json.gz sc1.bam sc2.bam sc3.bam
