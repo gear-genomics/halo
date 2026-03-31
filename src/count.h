@@ -33,6 +33,7 @@ namespace halo
 
   struct CountConfig {
     bool gcbiasprof;
+    bool ignoreRG;
     uint16_t minMapQual;
     uint32_t window;
     uint32_t minchrsize;
@@ -62,6 +63,152 @@ namespace halo
   template<typename TConfig>
   inline int32_t
   runHP(TConfig& c) {
+    // Load bam files
+    typedef std::vector<samFile*> TSamFile;
+    typedef std::vector<hts_idx_t*> TIndex;
+    typedef std::vector<bam_hdr_t*> THeader;
+    TSamFile samfile(c.files.size());
+    TIndex idx(c.files.size());
+    THeader hdr(c.files.size());
+    for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+      samfile[file_c] = sam_open(c.files[file_c].string().c_str(), "r");
+      hts_set_fai_filename(samfile[file_c], c.genome.string().c_str());
+      idx[file_c] = sam_index_load(samfile[file_c], c.files[file_c].string().c_str());
+      hdr[file_c] = sam_hdr_read(samfile[file_c]);
+    }
+
+    // Watson-Crick Counter
+    typedef std::pair<uint32_t, uint32_t> TWatsonCrick;
+    typedef std::vector<TWatsonCrick> TChrWC;
+    typedef std::vector<TChrWC> TGenomicWC;
+    typedef std::vector<TGenomicWC> TSampleWC;
+    TSampleWC sWC(c.files.size(), TGenomicWC());
+    for(uint32_t file_c = 0; file_c < c.files.size(); ++file_c) {
+      sWC[file_c].resize(hdr[0]->n_targets, TChrWC());
+      for (int32_t refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
+	if (hdr[0]->target_len[refIndex] < c.minchrsize) continue;
+	uint32_t bins = hdr[0]->target_len[refIndex] / c.window + 1;
+	sWC[file_c][refIndex].resize(bins);
+	for (uint32_t k = 0; k < bins; ++k) {
+	  sWC[file_c][refIndex][k].first = 0;
+	  sWC[file_c][refIndex][k].second = 0;
+	}
+      }
+    }
+
+    // Parse bam (contig by contig)
+    std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] " << "BAM file parsing" << std::endl;
+    for (int refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
+      if (!sWC[0][refIndex].size()) continue;
+
+      // Load chromosome
+      char* seq = NULL;
+      faidx_t* fai = fai_load(c.genome.string().c_str());
+      int32_t seqlen = -1;
+      std::string tname(hdr[0]->target_name[refIndex]);
+      seq = faidx_fetch_seq(fai, tname.c_str(), 0, hdr[0]->target_len[refIndex], &seqlen);
+      
+      // GC- and N-content
+      typedef boost::dynamic_bitset<> TBitSet;
+      TBitSet nrun(hdr[0]->target_len[refIndex], false);
+      TBitSet gcref(hdr[0]->target_len[refIndex], false);
+      for(uint32_t i = 0; i < hdr[0]->target_len[refIndex]; ++i) {
+	if ((seq[i] == 'c') || (seq[i] == 'C') || (seq[i] == 'g') || (seq[i] == 'G')) gcref[i] = 1;
+	if ((seq[i] == 'n') || (seq[i] == 'N')) nrun[i] = 1;
+      }
+
+      // Parse BAM
+      for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {    
+	// Count reads
+	hts_itr_t* iter = sam_itr_queryi(idx[file_c], refIndex, 0, hdr[file_c]->target_len[refIndex]);
+	bam1_t* rec = bam_init1();
+	while (sam_itr_next(samfile[file_c], iter, rec) >= 0) {
+	  if (rec->core.flag & (BAM_FSECONDARY | BAM_FQCFAIL | BAM_FDUP | BAM_FSUPPLEMENTARY | BAM_FUNMAP)) continue;
+	  if ((rec->core.flag & BAM_FPAIRED) && (rec->core.flag & BAM_FREAD2)) continue;
+	  if ((rec->core.flag & BAM_FPAIRED) && ((rec->core.flag & BAM_FMUNMAP) || (rec->core.tid != rec->core.mtid))) continue;
+	  if (rec->core.qual < c.minMapQual) continue;
+	  
+	  // Count mid point
+	  int32_t midPoint = rec->core.pos + halfAlignmentLength(rec);
+	  std::cerr << midPoint << std::endl;
+	  if (midPoint < (int32_t) hdr[file_c]->target_len[refIndex]) {
+	    int32_t binny = (int) (midPoint / c.window);
+	    if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].second;
+	    else ++sWC[file_c][refIndex][binny].first;
+	  }
+	}
+	// Clean-up
+	bam_destroy1(rec);
+	hts_itr_destroy(iter);
+      }
+      if (seq != NULL) free(seq);
+      fai_destroy(fai);
+      
+      // Blacklist bins
+      int32_t pos = 0;
+      for(uint32_t k = 0; k < sWC[0][refIndex].size(); ++k) {
+	uint32_t ncount = 0;
+	for(uint32_t l = pos; ((l < pos + c.window) && (l < hdr[0]->target_len[refIndex])); ++l) {
+	  if (nrun[l]) ++ncount;
+	}
+	double nfrac = (double) ncount / (double) c.window;
+	if (nfrac > (double) c.blacklistn / (double) 100) {
+	  // Blacklist window
+	  for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+	    sWC[file_c][refIndex][k].first = 0;
+	    sWC[file_c][refIndex][k].second = 0;
+	  }
+	}
+	pos += c.window;
+      }
+    }
+
+    // Estimate noise
+    double totalSSE = 0;
+    double totalCount = 0;
+    for(uint32_t file_c = 0; file_c < c.files.size(); ++file_c) {
+      int64_t cumSum = 0;
+      int32_t cumCount = 0;
+      for (int32_t refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
+	for(uint32_t k = 0; k < sWC[file_c][refIndex].size(); ++k) {
+	  if (sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second > 0) {
+	    cumSum += sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second;
+	    ++cumCount;
+	  }
+	}
+      }
+      double avgDepth = (double) cumSum / (double) cumCount;
+      double sse = 0;
+      double localc = 0;
+      for (int32_t refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
+	for(uint32_t k = 0; k < sWC[file_c][refIndex].size(); ++k) {
+	  if (sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second > 0) {
+	    double winDepth = sWC[file_c][refIndex][k].first + sWC[file_c][refIndex][k].second;
+	    sse += (avgDepth - winDepth) * (avgDepth - winDepth);
+	    ++totalCount;
+	    ++localc;
+	  }
+	}
+      }
+      std::cout << c.sampleName[file_c] << ",AvgDepth=" <<  avgDepth << ",MSE=" << std::sqrt(sse / localc) << std::endl;
+      totalSSE += sse;
+    }
+    
+    // Output
+    std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] " << "Output haplotype counts" << std::endl;
+    if (c.format == "tsv") haloTsvOut(c, hdr, sWC);
+    else haloJsonOut(c, hdr, sWC);
+
+    // End
+    std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] Done." << std::endl;
+
+    // Close files
+    for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+      hts_idx_destroy(idx[file_c]);
+      sam_close(samfile[file_c]);
+      bam_hdr_destroy(hdr[file_c]);
+    }
+	  
     return 0;
   }
       
@@ -80,37 +227,11 @@ namespace halo
     TSamFile samfile(c.files.size());
     TIndex idx(c.files.size());
     THeader hdr(c.files.size());
-    c.sampleName.resize(c.files.size());
     for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
       samfile[file_c] = sam_open(c.files[file_c].string().c_str(), "r");
-      if (samfile[file_c] == NULL) {
-	std::cerr << "Fail to open file " << c.files[file_c].string() << std::endl;
-	return 1;
-      }
+      hts_set_fai_filename(samfile[file_c], c.genome.string().c_str());
       idx[file_c] = sam_index_load(samfile[file_c], c.files[file_c].string().c_str());
-      if (idx[file_c] == NULL) {
-	std::cerr << "Fail to open index for " << c.files[file_c].string() << std::endl;
-	return 1;
-      }
       hdr[file_c] = sam_hdr_read(samfile[file_c]);
-      if (hdr[file_c] == NULL) {
-	std::cerr << "Fail to open header for " << c.files[file_c].string() << std::endl;
-	return 1;
-      }
-      faidx_t* fai = fai_load(c.genome.string().c_str());
-      for(int32_t refIndex=0; refIndex < hdr[file_c]->n_targets; ++refIndex) {
-	std::string tname(hdr[file_c]->target_name[refIndex]);
-	if (!faidx_has_seq(fai, tname.c_str())) {
-	  std::cerr << "BAM file chromosome " << hdr[file_c]->target_name[refIndex] << " is NOT present in your reference file " << c.genome.string() << std::endl;
-	  return 1;
-	}
-      }
-      fai_destroy(fai);
-      std::string sampleName;
-      if (!getSMTag(std::string(hdr[file_c]->text), c.files[file_c].stem().string(), sampleName)) {
-	std::cerr << "Only one sample (@RG:SM) is allowed per input BAM file " << c.files[file_c].string() << std::endl;
-	return 1;
-      } else c.sampleName[file_c] = sampleName;
     }
 
     // Load insert sizes
@@ -379,6 +500,7 @@ namespace halo
       ("minchrsize,m", boost::program_options::value<uint32_t>(&c.minchrsize)->default_value(10000000), "min. chr size")
       ("format,f", boost::program_options::value<std::string>(&c.format)->default_value("json"), "output format [json|tsv]")
       ("outfile,o", boost::program_options::value<boost::filesystem::path>(&c.outfile)->default_value("out.json.gz"), "output file")
+      ("ignore,r", "ignore read-groups")
       ;
     
     boost::program_options::options_description hidden("Hidden options");
@@ -403,6 +525,10 @@ namespace halo
       std::cout << visible_options << "\n";
       return 1;
     }
+
+    // Ignore read groups
+    if (vm.count("ignore")) c.ignoreRG = true;
+    else c.ignoreRG = false;
 
     // Check GC bias profile
     c.gcbiasprof = false;
@@ -439,6 +565,54 @@ namespace halo
       fai_destroy(fai);
     }
 
+    // Check bam files
+    typedef std::vector<samFile*> TSamFile;
+    typedef std::vector<hts_idx_t*> TIndex;
+    typedef std::vector<bam_hdr_t*> THeader;
+    TSamFile samfile(c.files.size());
+    TIndex idx(c.files.size());
+    THeader hdr(c.files.size());
+    c.sampleName.resize(c.files.size());
+    for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+      samfile[file_c] = sam_open(c.files[file_c].string().c_str(), "r");
+      hts_set_fai_filename(samfile[file_c], c.genome.string().c_str());
+      if (samfile[file_c] == NULL) {
+	std::cerr << "Fail to open file " << c.files[file_c].string() << std::endl;
+	return 1;
+      }
+      idx[file_c] = sam_index_load(samfile[file_c], c.files[file_c].string().c_str());
+      if (idx[file_c] == NULL) {
+	std::cerr << "Fail to open index for " << c.files[file_c].string() << std::endl;
+	return 1;
+      }
+      hdr[file_c] = sam_hdr_read(samfile[file_c]);
+      if (hdr[file_c] == NULL) {
+	std::cerr << "Fail to open header for " << c.files[file_c].string() << std::endl;
+	return 1;
+      }
+      faidx_t* fai = fai_load(c.genome.string().c_str());
+      for(int32_t refIndex=0; refIndex < hdr[file_c]->n_targets; ++refIndex) {
+	std::string tname(hdr[file_c]->target_name[refIndex]);
+	if (!faidx_has_seq(fai, tname.c_str())) {
+	  std::cerr << "BAM file chromosome " << hdr[file_c]->target_name[refIndex] << " is NOT present in your reference file " << c.genome.string() << std::endl;
+	  return 1;
+	}
+      }
+      fai_destroy(fai);
+      std::string sampleName;
+      if (!getSMTag(std::string(hdr[file_c]->text), c.files[file_c].stem().string(), sampleName)) {
+	if (!c.ignoreRG) {
+	  std::cerr << "Only one sample (@RG:SM) is allowed per input BAM file " << c.files[file_c].string() << std::endl;
+	  return 1;
+	} else c.sampleName[file_c] = c.files[file_c].stem().string();
+      } else c.sampleName[file_c] = sampleName;
+    }
+    for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+      hts_idx_destroy(idx[file_c]);
+      sam_close(samfile[file_c]);
+      bam_hdr_destroy(hdr[file_c]);
+    }
+    
     // StandSeq mode or HP-tagged mode
     if (c.method == "StrandSeq") return runStrandSeq(c);
     else return runHP(c);    
