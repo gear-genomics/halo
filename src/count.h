@@ -58,89 +58,21 @@ namespace halo
     WindowClassifier(float w, float c, float m, float a) : watsonCut(w), crickCut(c), median(m), mad(a) {}
   };
 
-  int count(int argc, char **argv) {
 
+  template<typename TConfig>
+  inline int32_t
+  runHP(TConfig& c) {
+    return 0;
+  }
+      
+  template<typename TConfig>
+  inline int32_t
+  runStrandSeq(TConfig& c) {
+    
 #ifdef PROFILE
     ProfilerStart("count.prof");
 #endif
-    
-    CountConfig c;
 
-    // Parameter
-    boost::program_options::options_description generic("Generic options");
-    generic.add_options()
-      ("help,?", "show help message")
-      ("type,t", boost::program_options::value<std::string>(&c.method)->default_value("StrandSeq"), "seq. method [StrandSeq]")
-      ("genome,g", boost::program_options::value<boost::filesystem::path>(&c.genome), "genome fasta file")
-      ("gcbias,c", boost::program_options::value<boost::filesystem::path>(&c.gcbias), "GC bias profile")
-      ("map-qual,q", boost::program_options::value<uint16_t>(&c.minMapQual)->default_value(1), "min. mapping quality")
-      ("blacklist,b", boost::program_options::value<int32_t>(&c.blacklistn)->default_value(10), "remove windows with >N%")
-      ("percentid,p", boost::program_options::value<int32_t>(&c.percentid)->default_value(98), "min. required percent identity")
-      ("window,w", boost::program_options::value<uint32_t>(&c.window)->default_value(200000), "window size")
-      ("minchrsize,m", boost::program_options::value<uint32_t>(&c.minchrsize)->default_value(10000000), "min. chr size")
-      ("format,f", boost::program_options::value<std::string>(&c.format)->default_value("json"), "output format [json|tsv]")
-      ("outfile,o", boost::program_options::value<boost::filesystem::path>(&c.outfile)->default_value("out.json.gz"), "output file")
-      ;
-    
-    boost::program_options::options_description hidden("Hidden options");
-    hidden.add_options()
-      ("input-file", boost::program_options::value< std::vector<boost::filesystem::path> >(&c.files), "input bam file")
-      ;
-    
-    boost::program_options::positional_options_description pos_args;
-    pos_args.add("input-file", -1);
-    
-    boost::program_options::options_description cmdline_options;
-    cmdline_options.add(generic).add(hidden);
-    boost::program_options::options_description visible_options;
-    visible_options.add(generic);
-    boost::program_options::variables_map vm;
-    boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(cmdline_options).positional(pos_args).run(), vm);
-    boost::program_options::notify(vm);
-    
-    // Check command line arguments
-    if ((vm.count("help")) || (!vm.count("input-file")) || (!vm.count("genome"))) {
-      std::cout << "Usage: halo " << argv[0] << " [OPTIONS] -g <ref.fa> <sc1.bam> <sc2.bam> ... <scN.bam>" << std::endl;
-      std::cout << visible_options << "\n";
-      return 1;
-    }
-
-    // Check GC bias profile
-    c.gcbiasprof = false;
-    if (vm.count("gcbias")) {
-      if (boost::filesystem::exists(c.gcbias) && boost::filesystem::is_regular_file(c.gcbias) && boost::filesystem::file_size(c.gcbias)) c.gcbiasprof = true;
-    }
-    
-    // Show cmd
-    boost::posix_time::ptime now = boost::posix_time::second_clock::local_time();
-    std::cout << '[' << boost::posix_time::to_simple_string(now) << "] ";
-    std::cout << "halo ";
-    for(int i=0; i<argc; ++i) { std::cout << argv[i] << ' '; }
-    std::cout << std::endl;
-
-    // Check BAM files
-    for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
-      if (!(boost::filesystem::exists(c.files[file_c]) && boost::filesystem::is_regular_file(c.files[file_c]) && boost::filesystem::file_size(c.files[file_c]))) {
-	std::cerr << "Input BAM file is missing: " << c.files[file_c].string() << std::endl;
-	return 1;
-      }
-    }
-
-    // Check reference
-    if (!(boost::filesystem::exists(c.genome) && boost::filesystem::is_regular_file(c.genome) && boost::filesystem::file_size(c.genome))) {
-      std::cerr << "Reference file is missing: " << c.genome.string() << std::endl;
-      return 1;
-    } else {
-      faidx_t* fai = fai_load(c.genome.string().c_str());
-      if (fai == NULL) {
-	if (fai_build(c.genome.string().c_str()) == -1) {
-	  std::cerr << "Fail to open genome fai index for " << c.genome.string() << std::endl;
-	  return 1;
-	} else fai = fai_load(c.genome.string().c_str());
-      }
-      fai_destroy(fai);
-    }
-    
     // Load bam files
     typedef std::vector<samFile*> TSamFile;
     typedef std::vector<hts_idx_t*> TIndex;
@@ -214,8 +146,7 @@ namespace halo
     }
 
     // Parse bam (contig by contig)
-    now = boost::posix_time::second_clock::local_time();
-    std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "BAM file parsing" << std::endl;
+    std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] " << "BAM file parsing" << std::endl;
     for (int refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
       if (!sWC[0][refIndex].size()) continue;
 
@@ -410,14 +341,12 @@ namespace halo
     
     
     // Output
-    now = boost::posix_time::second_clock::local_time();
-    std::cout << '[' << boost::posix_time::to_simple_string(now) << "] " << "Output Single Cell Counts" << std::endl;
+    std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] " << "Output Single Cell Counts" << std::endl;
     if (c.format == "tsv") haloTsvOut(c, hdr, sWC);
     else haloJsonOut(c, hdr, sWC);
 
     // End
-    now = boost::posix_time::second_clock::local_time();
-    std::cout << '[' << boost::posix_time::to_simple_string(now) << "] Done." << std::endl;
+    std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] Done." << std::endl;
 
     // Close bam
     for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
@@ -430,6 +359,89 @@ namespace halo
     ProfilerStop();
 #endif
     return 0;
+  }
+
+  
+  int count(int argc, char **argv) {
+    CountConfig c;
+
+    // Parameter
+    boost::program_options::options_description generic("Generic options");
+    generic.add_options()
+      ("help,?", "show help message")
+      ("type,t", boost::program_options::value<std::string>(&c.method)->default_value("StrandSeq"), "seq. method [StrandSeq, HP_tagged]")
+      ("genome,g", boost::program_options::value<boost::filesystem::path>(&c.genome), "genome fasta file")
+      ("gcbias,c", boost::program_options::value<boost::filesystem::path>(&c.gcbias), "GC bias profile")
+      ("map-qual,q", boost::program_options::value<uint16_t>(&c.minMapQual)->default_value(1), "min. mapping quality")
+      ("blacklist,b", boost::program_options::value<int32_t>(&c.blacklistn)->default_value(10), "remove windows with >N%")
+      ("percentid,p", boost::program_options::value<int32_t>(&c.percentid)->default_value(98), "min. required percent identity")
+      ("window,w", boost::program_options::value<uint32_t>(&c.window)->default_value(200000), "window size")
+      ("minchrsize,m", boost::program_options::value<uint32_t>(&c.minchrsize)->default_value(10000000), "min. chr size")
+      ("format,f", boost::program_options::value<std::string>(&c.format)->default_value("json"), "output format [json|tsv]")
+      ("outfile,o", boost::program_options::value<boost::filesystem::path>(&c.outfile)->default_value("out.json.gz"), "output file")
+      ;
+    
+    boost::program_options::options_description hidden("Hidden options");
+    hidden.add_options()
+      ("input-file", boost::program_options::value< std::vector<boost::filesystem::path> >(&c.files), "input bam file")
+      ;
+    
+    boost::program_options::positional_options_description pos_args;
+    pos_args.add("input-file", -1);
+    
+    boost::program_options::options_description cmdline_options;
+    cmdline_options.add(generic).add(hidden);
+    boost::program_options::options_description visible_options;
+    visible_options.add(generic);
+    boost::program_options::variables_map vm;
+    boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(cmdline_options).positional(pos_args).run(), vm);
+    boost::program_options::notify(vm);
+    
+    // Check command line arguments
+    if ((vm.count("help")) || (!vm.count("input-file")) || (!vm.count("genome"))) {
+      std::cout << "Usage: halo " << argv[0] << " [OPTIONS] -g <ref.fa> <sc1.bam> <sc2.bam> ... <scN.bam>" << std::endl;
+      std::cout << visible_options << "\n";
+      return 1;
+    }
+
+    // Check GC bias profile
+    c.gcbiasprof = false;
+    if (vm.count("gcbias")) {
+      if (boost::filesystem::exists(c.gcbias) && boost::filesystem::is_regular_file(c.gcbias) && boost::filesystem::file_size(c.gcbias)) c.gcbiasprof = true;
+    }
+    
+    // Show cmd
+    std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] ";
+    std::cout << "halo ";
+    for(int i=0; i<argc; ++i) { std::cout << argv[i] << ' '; }
+    std::cout << std::endl;
+
+    // Check BAM files
+    for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+      if (!(boost::filesystem::exists(c.files[file_c]) && boost::filesystem::is_regular_file(c.files[file_c]) && boost::filesystem::file_size(c.files[file_c]))) {
+	std::cerr << "Input BAM file is missing: " << c.files[file_c].string() << std::endl;
+	return 1;
+      }
+    }
+
+    // Check reference
+    if (!(boost::filesystem::exists(c.genome) && boost::filesystem::is_regular_file(c.genome) && boost::filesystem::file_size(c.genome))) {
+      std::cerr << "Reference file is missing: " << c.genome.string() << std::endl;
+      return 1;
+    } else {
+      faidx_t* fai = fai_load(c.genome.string().c_str());
+      if (fai == NULL) {
+	if (fai_build(c.genome.string().c_str()) == -1) {
+	  std::cerr << "Fail to open genome fai index for " << c.genome.string() << std::endl;
+	  return 1;
+	} else fai = fai_load(c.genome.string().c_str());
+      }
+      fai_destroy(fai);
+    }
+
+    // StandSeq mode or HP-tagged mode
+    if (c.method == "StrandSeq") return runStrandSeq(c);
+    else return runHP(c);    
   }
 
 }
