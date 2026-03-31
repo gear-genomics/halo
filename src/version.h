@@ -5,7 +5,7 @@ namespace halo
 {
 
 
-  std::string haloVersionNumber = "0.1.7";
+  std::string haloVersionNumber = "0.1.8";
 
   inline 
     void printTitle(std::string const& title) 
