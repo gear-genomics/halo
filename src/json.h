@@ -18,6 +18,7 @@ namespace halo
     rfile.push(boost::iostreams::gzip_compressor());
     rfile.push(boost::iostreams::file_sink(c.outfile.string().c_str(), std::ios_base::out | std::ios_base::binary));
     rfile << "{" << std::endl;
+    rfile << "\"method\": \"" << c.method << "\"," << std::endl;
     rfile << "\"data\": [" << std::endl;
     for(uint32_t i = 0; i < c.sampleName.size(); ++i) {
       if (i > 0) rfile << "," << std::endl;
@@ -39,7 +40,7 @@ namespace halo
 	rfile << "]," << std::endl;
 	rfile << "\"counts\": [" << std::endl;
 	rfile << "{" << std::endl;
-	rfile << "\"label\": \"Watson\"," << std::endl;
+	rfile << "\"label\": \"" << (c.method == "HP_tagged" ? "HP1" : "Watson") << "\"," << std::endl;
 	rfile << "\"values\": [" << std::endl;
 	for (uint32_t k = 0; k < sWC[i][refIndex].size(); ++k) {
 	  if (k > 0) rfile << ", ";
@@ -48,7 +49,7 @@ namespace halo
 	rfile << "]" << std::endl;
 	rfile << "}," << std::endl;
 	rfile << "{" <<	std::endl;
-	rfile << "\"label\": \"Crick\"," << std::endl;
+	rfile << "\"label\": \"" << (c.method == "HP_tagged" ? "HP2" : "Crick") << "\"," << std::endl;
 	rfile << "\"values\": [" << std::endl;
 	for (uint32_t k = 0; k < sWC[i][refIndex].size(); ++k) {
 	  if (k > 0) rfile << ", ";

@@ -33,6 +33,17 @@ halo count -g hg38.fa -o sc.json.gz sc1.bam sc2.bam sc3.bam
 
 The output file `sc.json.gz` can then be uploaded and visualized at [https://www.gear-genomics.com/halo/](https://www.gear-genomics.com/halo/).
 
+## Haplotype-resolved alignments
+
+Besides Strand-Seq data, halo can also be used on any haplotype-tagged BAM file that uses the HP tag.
+
+```bash
+halo count -r -t HP_tagged -w 25000 -g hg38.fa input.bam
+```
+
+This command generates coverage data by haplotype using 25Kbp windows. The output file can then be uploaded and visualized at [https://www.gear-genomics.com/halo/](https://www.gear-genomics.com/halo/).
+
+
 License
 -------
 Halo is distributed under the GPLv3 license. Consult the accompanying [LICENSE](https://github.com/gear-genomics/halo/blob/main/LICENSE) file for more details.

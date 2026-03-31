@@ -98,12 +98,12 @@ namespace halo
 
     // Parse bam (contig by contig)
     std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] " << "BAM file parsing" << std::endl;
+    faidx_t* fai = fai_load(c.genome.string().c_str());
     for (int refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
       if (!sWC[0][refIndex].size()) continue;
 
       // Load chromosome
       char* seq = NULL;
-      faidx_t* fai = fai_load(c.genome.string().c_str());
       int32_t seqlen = -1;
       std::string tname(hdr[0]->target_name[refIndex]);
       seq = faidx_fetch_seq(fai, tname.c_str(), 0, hdr[0]->target_len[refIndex], &seqlen);
@@ -111,44 +111,129 @@ namespace halo
       // GC- and N-content
       typedef boost::dynamic_bitset<> TBitSet;
       TBitSet nrun(hdr[0]->target_len[refIndex], false);
-      TBitSet gcref(hdr[0]->target_len[refIndex], false);
+      //TBitSet gcref(hdr[0]->target_len[refIndex], false);
       for(uint32_t i = 0; i < hdr[0]->target_len[refIndex]; ++i) {
-	if ((seq[i] == 'c') || (seq[i] == 'C') || (seq[i] == 'g') || (seq[i] == 'G')) gcref[i] = 1;
+	//if ((seq[i] == 'c') || (seq[i] == 'C') || (seq[i] == 'g') || (seq[i] == 'G')) gcref[i] = 1;
 	if ((seq[i] == 'n') || (seq[i] == 'N')) nrun[i] = 1;
       }
 
       // Parse BAM
-      for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {    
+      for(unsigned int file_c = 0; file_c < c.files.size(); ++file_c) {
+	// Coverage track
+	typedef uint16_t TCount;
+	uint32_t maxCoverage = std::numeric_limits<TCount>::max();
+	typedef std::vector<TCount> TCoverage;
+	TCoverage covHP1(hdr[file_c]->target_len[refIndex], 0);
+	TCoverage covHP2(hdr[file_c]->target_len[refIndex], 0);
+      
 	// Count reads
 	hts_itr_t* iter = sam_itr_queryi(idx[file_c], refIndex, 0, hdr[file_c]->target_len[refIndex]);
 	bam1_t* rec = bam_init1();
 	while (sam_itr_next(samfile[file_c], iter, rec) >= 0) {
-	  if (rec->core.flag & (BAM_FSECONDARY | BAM_FQCFAIL | BAM_FDUP | BAM_FSUPPLEMENTARY | BAM_FUNMAP)) continue;
-	  if ((rec->core.flag & BAM_FPAIRED) && (rec->core.flag & BAM_FREAD2)) continue;
-	  if ((rec->core.flag & BAM_FPAIRED) && ((rec->core.flag & BAM_FMUNMAP) || (rec->core.tid != rec->core.mtid))) continue;
+	  if (rec->core.flag & (BAM_FQCFAIL | BAM_FDUP | BAM_FUNMAP)) continue;
 	  if (rec->core.qual < c.minMapQual) continue;
 
-	  // Count mid point
-	  int32_t midPoint = rec->core.pos + halfAlignmentLength(rec);
-	  if (midPoint < (int32_t) hdr[file_c]->target_len[refIndex]) {
-	    // Get HP tag
-	    uint8_t* hpTag = bam_aux_get(rec, "HP");
-	    if (!hpTag) continue;
-	    int32_t hpVal = bam_aux2i(hpTag);
-	    if ((hpVal != 1) && (hpVal != 2)) continue;
+	  // Get HP tag
+	  uint8_t* hpTag = bam_aux_get(rec, "HP");
+	  if (!hpTag) continue;
+	  int32_t hpVal = bam_aux2i(hpTag);
+	  if ((hpVal != 1) && (hpVal != 2)) continue;
 
-	    // Assign count
-	    int32_t binny = (int) (midPoint / c.window);
-	    if (hpVal == 1) ++sWC[file_c][refIndex][binny].first;
-	    else ++sWC[file_c][refIndex][binny].second;
+	  // Sequence
+	  std::string sequence;
+	  sequence.resize(rec->core.l_qseq);
+	  uint8_t* seqptr = bam_get_seq(rec);
+	  for (int i = 0; i < rec->core.l_qseq; ++i) sequence[i] = "=ACMGRSVTWYHKDBN"[bam_seqi(seqptr, i)];
+
+	  // Reference slice
+	  std::string refslice = boost::to_upper_copy(std::string(seq + rec->core.pos, seq + lastAlignedPosition(rec)));
+
+	  // Percent identity
+	  uint32_t rp = 0; // reference pointer
+	  uint32_t sp = 0; // sequence pointer
+	  uint32_t* cigar = bam_get_cigar(rec);
+	  int32_t matchCount = 0;
+	  int32_t mismatchCount = 0;
+	  for (std::size_t i = 0; i < rec->core.n_cigar; ++i) {
+	    if ((bam_cigar_op(cigar[i]) == BAM_CMATCH) || (bam_cigar_op(cigar[i]) == BAM_CEQUAL) || (bam_cigar_op(cigar[i]) == BAM_CDIFF)) {
+	      // match or mismatch
+	      for(std::size_t k = 0; k<bam_cigar_oplen(cigar[i]);++k) {
+		if (sequence[sp] == refslice[rp]) ++matchCount;
+		else ++mismatchCount;
+		++sp;
+		++rp;
+	      }
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CDEL) {
+	      ++mismatchCount;
+	      rp += bam_cigar_oplen(cigar[i]);
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CINS) {
+	      ++mismatchCount;
+	      sp += bam_cigar_oplen(cigar[i]);
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CSOFT_CLIP) {
+	      sp += bam_cigar_oplen(cigar[i]);
+	    } else if(bam_cigar_op(cigar[i]) == BAM_CHARD_CLIP) {
+	    } else if (bam_cigar_op(cigar[i]) == BAM_CREF_SKIP) {
+	      rp += bam_cigar_oplen(cigar[i]);
+	    } else {
+	      std::cerr << "Unknown Cigar options" << std::endl;
+	      return 1;
+	    }
+	  }
+	  double percid = 0;
+	  if (matchCount + mismatchCount > 0) percid = (double) matchCount / (double) (matchCount + mismatchCount);
+	  if (percid < ((double) c.percentid / (double) 100)) continue;
+
+	  // Accumulate per-base coverage
+	  int32_t refPos = rec->core.pos;
+	  for (std::size_t ci = 0; ci < rec->core.n_cigar; ++ci) {
+	    uint32_t op = bam_cigar_op(cigar[ci]);
+	    uint32_t oplen = bam_cigar_oplen(cigar[ci]);
+	    if ((op == BAM_CMATCH) || (op == BAM_CEQUAL) || (op == BAM_CDIFF)) {
+	      for (uint32_t bp = 0; bp < oplen; ++bp, ++refPos) {
+		if (refPos < (int32_t) hdr[file_c]->target_len[refIndex]) {
+		  if (hpVal == 1) {
+		    if (covHP1[refPos] < maxCoverage - 1) ++covHP1[refPos];
+		  }
+		  else {
+		    if (covHP2[refPos] < maxCoverage - 1) ++covHP2[refPos];
+		  }
+		}
+	      }
+	    } else if ((op == BAM_CDEL) || (op == BAM_CREF_SKIP)) {
+	      refPos += oplen;
+	    }
 	  }
 	}
 	// Clean-up
 	bam_destroy1(rec);
 	hts_itr_destroy(iter);
+
+	// Summarize coverage vectors per bin using median (skipping N positions)
+	int32_t binStart = 0;
+	for (uint32_t k = 0; k < sWC[file_c][refIndex].size(); ++k) {
+	  int32_t binEnd = std::min(binStart + (int32_t)c.window, (int32_t)hdr[file_c]->target_len[refIndex]);
+	  std::vector<uint16_t> hp1vals;
+	  std::vector<uint16_t> hp2vals;
+	  hp1vals.reserve(binEnd - binStart);
+	  hp2vals.reserve(binEnd - binStart);
+	  for (int32_t l = binStart; l < binEnd; ++l) {
+	    if (!nrun[l]) {
+	      hp1vals.push_back(covHP1[l]);
+	      hp2vals.push_back(covHP2[l]);
+	    }
+	  }
+	  if (!hp1vals.empty()) {
+	    uint16_t med1 = 0;
+	    _getMedian(hp1vals.begin(), hp1vals.end(), med1);
+	    sWC[file_c][refIndex][k].first = med1;
+	    uint16_t med2 = 0;
+	    _getMedian(hp2vals.begin(), hp2vals.end(), med2);
+	    sWC[file_c][refIndex][k].second = med2;
+	  }
+	  binStart += c.window;
+	}
       }
       if (seq != NULL) free(seq);
-      fai_destroy(fai);
       
       // Blacklist bins
       int32_t pos = 0;
@@ -168,6 +253,7 @@ namespace halo
 	pos += c.window;
       }
     }
+    fai_destroy(fai);
 
     // Estimate noise
     double totalSSE = 0;
@@ -274,12 +360,12 @@ namespace halo
 
     // Parse bam (contig by contig)
     std::cout << '[' << boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << "] " << "BAM file parsing" << std::endl;
+    faidx_t* fai = fai_load(c.genome.string().c_str());
     for (int refIndex = 0; refIndex<hdr[0]->n_targets; ++refIndex) {
       if (!sWC[0][refIndex].size()) continue;
 
       // Load chromosome
       char* seq = NULL;
-      faidx_t* fai = fai_load(c.genome.string().c_str());
       int32_t seqlen = -1;
       std::string tname(hdr[0]->target_name[refIndex]);
       seq = faidx_fetch_seq(fai, tname.c_str(), 0, hdr[0]->target_len[refIndex], &seqlen);
@@ -412,8 +498,6 @@ namespace halo
 	hts_itr_destroy(iter);
       }
       if (seq != NULL) free(seq);
-      fai_destroy(fai);
-
       
       // Blacklist bins
       int32_t pos = 0;
@@ -433,6 +517,7 @@ namespace halo
 	pos += c.window;
       }
     }
+    fai_destroy(fai);
 
     // Estimate noise
     double totalSSE = 0;

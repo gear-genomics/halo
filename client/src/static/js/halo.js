@@ -5,6 +5,12 @@ const urlExample = document.getElementById('link-example').href
 var exampleData
 let view = 'samples'
 let charts = []
+
+function purgeCharts() {
+  charts.forEach(chart => Plotly.purge(chart))
+  charts = []
+}
+
 const barColors = ['#658c8b', '#f4a45f']
 
 $('#mainTab a').on('click', function (e) {
@@ -56,6 +62,7 @@ function run() {
   trellisSampleButton.classList.add('active')
   trellisChromosomeButton.classList.remove('active')
   hideElement(resultContainer)
+  purgeCharts()
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
 
@@ -131,6 +138,7 @@ function trellisSample() {
   trellisChromosomeButton.classList.remove('active')
   view = 'samples'
   hideElement(resultContainer)
+  purgeCharts()
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
   setupSelect()
@@ -147,6 +155,7 @@ function trellisChromosome() {
   trellisSampleButton.classList.remove('active')
   view = 'chromosomes'
   hideElement(resultContainer)
+  purgeCharts()
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
   setupSelect()
@@ -158,6 +167,7 @@ function trellisChromosome() {
 function handleChangeSample(event) {
   const index = Number.parseInt(event.target.value)
   hideElement(resultContainer)
+  purgeCharts()
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
   setTimeout(() => {
@@ -400,6 +410,7 @@ function showExample() {
   view = 'samples'
 
   hideElement(resultContainer)
+  purgeCharts()
   chartsContainer.innerHTML = ''
   showElement(resultInfo)
   resultLink.click()
