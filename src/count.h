@@ -127,14 +127,20 @@ namespace halo
 	  if ((rec->core.flag & BAM_FPAIRED) && (rec->core.flag & BAM_FREAD2)) continue;
 	  if ((rec->core.flag & BAM_FPAIRED) && ((rec->core.flag & BAM_FMUNMAP) || (rec->core.tid != rec->core.mtid))) continue;
 	  if (rec->core.qual < c.minMapQual) continue;
-	  
+
 	  // Count mid point
 	  int32_t midPoint = rec->core.pos + halfAlignmentLength(rec);
-	  std::cerr << midPoint << std::endl;
 	  if (midPoint < (int32_t) hdr[file_c]->target_len[refIndex]) {
+	    // Get HP tag
+	    uint8_t* hpTag = bam_aux_get(rec, "HP");
+	    if (!hpTag) continue;
+	    int32_t hpVal = bam_aux2i(hpTag);
+	    if ((hpVal != 1) && (hpVal != 2)) continue;
+
+	    // Assign count
 	    int32_t binny = (int) (midPoint / c.window);
-	    if (rec->core.flag & BAM_FREVERSE) ++sWC[file_c][refIndex][binny].second;
-	    else ++sWC[file_c][refIndex][binny].first;
+	    if (hpVal == 1) ++sWC[file_c][refIndex][binny].first;
+	    else ++sWC[file_c][refIndex][binny].second;
 	  }
 	}
 	// Clean-up
